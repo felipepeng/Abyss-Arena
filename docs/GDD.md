@@ -618,6 +618,12 @@ salvar na v1).
 
 Toda troca de tela e de fase tem um **fade** curto (~300 ms). Nenhuma transição é instantânea.
 
+Implementação (M6): a tela de derrota aparece 900 ms depois da morte (o jogador vê o que o
+matou). Na Descida, "Tentar de novo" e "Tentar a fase de novo" reusam a semente da fase; um mapa
+novo sorteia a sua. A sessão soma o tempo de todos os passos jogados (mortes incluídas, pausa
+não) e as mortes. Depois do Olho, "Continuar" leva à tela final. `R` só reinicia na hora com a
+depuração ligada.
+
 ---
 
 ## 12. Fora da v1

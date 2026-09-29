@@ -1,36 +1,53 @@
-import type { Action } from "../config/input";
 import { FONT_FAMILY, VIEW } from "../config/system";
-import type { Input } from "../core/input";
-import type { Scene, SceneManager } from "./manager";
+import { Menu } from "../ui/menu";
+import type { App } from "./app";
+import { AudioScene } from "./audio";
+import type { GameScene } from "./game";
+import type { Scene } from "./manager";
+import { goToTitle, retry } from "./navigation";
 
-// Pausa mínima: sobreposta ao jogo, que não recebe passo enquanto ela está por cima.
-// As opções (tentar de novo, áudio, sair) chegam no M6.
+// Pausa (GDD §11): sobreposta ao jogo, que não recebe passo enquanto ela está por cima.
+// Continuar, tentar a fase de novo, áudio e sair para o menu.
 
 export class PauseScene implements Scene {
   readonly overlay = true;
+  private readonly menu: Menu;
 
   constructor(
-    private readonly input: Input<Action>,
-    private readonly scenes: SceneManager,
-  ) {}
+    private readonly app: App,
+    game: GameScene,
+  ) {
+    const { scenes } = app;
+    this.menu = new Menu(
+      [
+        { kind: "button", label: "Continuar", onSelect: () => scenes.pop() },
+        { kind: "button", label: "Tentar a fase de novo", onSelect: () => retry(app, game.gameParams) },
+        { kind: "button", label: "Áudio", onSelect: () => scenes.push(new AudioScene(app, true)) },
+        { kind: "button", label: "Sair para o menu", onSelect: () => goToTitle(app) },
+      ],
+      220,
+    );
+  }
 
   step(): void {
-    if (this.input.wasPressed("pause")) this.scenes.pop();
+    const { input, scenes } = this.app;
+    if (input.wasPressed("pause") || input.wasPressed("menuBack")) {
+      scenes.pop();
+      return;
+    }
+    this.menu.step(input);
   }
 
   render(g: CanvasRenderingContext2D): void {
     const { width: W, height: H } = VIEW;
-    g.fillStyle = "rgba(2, 5, 11, 0.6)";
+    g.fillStyle = "rgba(2, 5, 11, 0.62)";
     g.fillRect(0, 0, W, H);
     g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.fillStyle = "#cfe6ff";
-    g.font = `bold 28px ${FONT_FAMILY}`;
-    g.fillText("PAUSA", W / 2, H / 2 - 12);
-    g.font = `13px ${FONT_FAMILY}`;
-    g.fillStyle = "#7fa6c8";
-    g.fillText("Esc ou P para continuar", W / 2, H / 2 + 22);
-    g.textAlign = "left";
     g.textBaseline = "alphabetic";
+    g.fillStyle = "#cfe6ff";
+    g.font = `bold 32px ${FONT_FAMILY}`;
+    g.fillText("PAUSA", W / 2, 160);
+    this.menu.render(g);
+    g.textAlign = "left";
   }
 }

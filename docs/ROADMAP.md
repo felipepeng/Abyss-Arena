@@ -8,7 +8,7 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M6 — Menus e fluxo de jogo** (não iniciado). M3, M4 e M5 implementados; falta jogá-los à mão.
+**Marco atual: M7 — Áudio sintetizado** (não iniciado). M3 a M6 implementados; falta jogá-los à mão.
 M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
 contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
@@ -201,19 +201,34 @@ aviso visível no overlay de depuração (estado marcado como `telegraph`) antes
 
 ---
 
-## ⬜ M6 — Menus e fluxo de jogo
+## 🟨 M6 — Menus e fluxo de jogo
 
-- [ ] Título com fundo animado.
-- [ ] **Descida:** Leito → Coral → Fosso, com a sessão (tempo, mortes) e a tela final.
-- [ ] **Arena livre:** seleção dos 3 mapas, todos liberados.
-- [ ] Pausa (`Esc`/`P`): continuar, tentar de novo, áudio, sair.
-- [ ] Telas de derrota e de fase concluída.
-- [ ] Cartões de título finais, com a frase de cada mapa.
-- [ ] Controles.
-- [ ] Fades em todas as transições.
+- [x] Título com fundo animado.
+- [x] **Descida:** Leito → Coral → Fosso, com a sessão (tempo, mortes) e a tela final.
+- [x] **Arena livre:** seleção dos 3 mapas, todos liberados.
+- [x] Pausa (`Esc`/`P`): continuar, tentar de novo, áudio, sair.
+- [x] Telas de derrota e de fase concluída.
+- [x] Cartões de título finais, com a frase de cada mapa.
+- [x] Controles.
+- [x] Fades em todas as transições.
 
 **Pronto quando:** dá para abrir o jogo e jogar a Descida inteira, ou qualquer fase na Arena
 livre, sem tocar em tecla de depuração, e toda transição tem fade.
+
+**Estado (2026-09-29):**
+- O jogo abre no título. A Descida, a Arena livre, a pausa, a derrota, a fase concluída e o fim
+  da Descida estão ligados, e **toda** troca de tela passa pelo `SceneManager` (fade de 300 ms).
+  `tests/scenes/flow.test.ts` percorre o fluxo com a entrada e o gerenciador de verdade: Título →
+  Descida → morrer → tentar de novo (mesma semente, mortes contadas) → fase concluída → próximo
+  mapa (semente nova, vida cheia) → tela final; a Arena livre; e a pausa (congela a simulação e
+  o tempo da sessão).
+- Menus por teclado (setas/WASD, Enter/Espaço/J, Esc) e por mouse (passar seleciona, clicar
+  confirma; nos controles de volume, clicar no trilho define o valor).
+- Volumes de música e efeitos (GDD §10.3) existem e são da sessão (`core/settings.ts`); o motor de
+  áudio do M7 vai lê-los. Nada é salvo (GDD §12).
+- `?map=rift|coral|abyss` e `?arena=test` continuam abrindo direto uma fase, como atalhos de
+  desenvolvimento; sem parâmetros, o jogo abre no título.
+- Falta jogar a Descida inteira à mão.
 
 ---
 

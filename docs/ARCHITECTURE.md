@@ -91,11 +91,15 @@ src/
     music.ts         sequenciador procedural por mapa, camadas de intensidade
     sources.ts       interface MusicSource (procedural agora, arquivo depois)
   scenes/
-    manager.ts       pilha de cenas + fades
-    title.ts  arenaSelect.ts  controls.ts  game.ts  pause.ts  result.ts
-    sandbox.ts       provisória do M0 (teste de entrada e de fade); sai quando game.ts existir
+    manager.ts       pilha de cenas + fades (push, pop, replace e resetTo)
+    app.ts           `App`: entrada, gerenciador, depuração, configurações e a próxima semente
+    flow.ts          a Descida (ordem dos mapas), a sessão (tempo, mortes), `Flow`, formatTime
+    navigation.ts    para onde cada saída leva (título, seleção, retry, continuar): um lugar só
+    title.ts  arenaSelect.ts  controls.ts  audio.ts  pause.ts
+    game.ts          a fase (mapa + semente + fluxo); empilha a tela de resultado no fim
+    results.ts       derrota, fase concluída e fim da Descida (uma cena, configurada por dados)
   ui/
-    hud.ts  menu.ts  titleCard.ts  text.ts
+    hud.ts  phaseHud.ts  menu.ts   (menu: lógica testável sem canvas + desenho)
   debug/
     overlay.ts       hitboxes, estados, velocidades, FPS
     cheats.ts        pular onda, invocar chefe, invencível
@@ -515,7 +519,7 @@ Ligado por `?debug` na URL ou `F1`:
 | `F7` | câmera lenta (0,25×) |
 | `F8` | anel de projéteis em volta do jogador (testa o pool, o estouro pela lança e a erosão) |
 | `B` `N` `M` | escolher o chefe (Caranguejo, Água-viva, Olho): troca para o mapa dele, com a mesma semente, e vai direto à entrada do chefe (o protótipo usava `B` para chamar o Caranguejo) |
-| `R` | reiniciar com a mesma semente (fora da depuração, só depois de morrer, até existir o menu do M6) |
+| `R` | reiniciar na hora com a mesma semente, sem fade (no jogo normal, "Tentar de novo" está na derrota e na pausa) |
 
 A semente atual aparece no overlay, para que um bug de mapa possa ser reproduzido.
 

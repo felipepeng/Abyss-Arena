@@ -23,6 +23,8 @@ export interface Scene {
 type Change =
   | { kind: "push"; scene: Scene }
   | { kind: "replace"; scene: Scene }
+  /** Descarta a pilha inteira e começa de `scene` (voltar ao menu, mudar de fase). */
+  | { kind: "reset"; scene: Scene }
   | { kind: "pop" };
 
 type FadePhase = "idle" | "out" | "in";
@@ -62,6 +64,10 @@ export class SceneManager {
 
   replace(scene: Scene): boolean {
     return this.request({ kind: "replace", scene });
+  }
+
+  resetTo(scene: Scene): boolean {
+    return this.request({ kind: "reset", scene });
   }
 
   pop(): boolean {
@@ -120,8 +126,9 @@ export class SceneManager {
     const change = this.pending;
     this.pending = null;
     if (!change) return;
+    if (change.kind === "reset") while (this.stack.length > 0) this.stack.pop()?.exit?.();
     if (change.kind === "pop" || change.kind === "replace") this.stack.pop()?.exit?.();
-    if (change.kind === "push" || change.kind === "replace") {
+    if (change.kind !== "pop") {
       this.stack.push(change.scene);
       change.scene.enter?.();
     }

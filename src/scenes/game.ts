@@ -1,8 +1,8 @@
-import type { Action } from "../config/input";
+import type { BossKind } from "../config/kinds";
 import { PROTOTYPE_PALETTE, type Palette } from "../config/palette";
 import { SPEAR } from "../config/spear";
-import { FONT_FAMILY, VIEW } from "../config/system";
-import type { Input } from "../core/input";
+import { FONT_FAMILY } from "../config/system";
+import { RESULT } from "../config/ui";
 import { TAU, lerp } from "../core/math";
 import { Fx } from "../fx/fx";
 import { WorldRenderer } from "../render/renderer";
@@ -12,65 +12,77 @@ import { ENEMY_DEFS } from "../sim/enemies/registry";
 import { inDashInvuln, makeSpearTip, NO_INTENT, spearTip, type PlayerIntent } from "../sim/player";
 import { debugSkipToBoss, debugSkipWave } from "../sim/phase";
 import { createMapWorld, createWorld, stepWorld, type World } from "../sim/world";
-import type { BossKind } from "../config/kinds";
 import type { MapDef } from "../world/mapdef";
 import { mapOfBoss } from "../world/maps/registry";
 import { buildTestArena } from "../world/testArena";
 import { drawControlsHint, drawPlayerHud } from "../ui/hud";
 import { drawPhaseHud } from "../ui/phaseHud";
-import type { Scene, SceneManager } from "./manager";
+import type { App } from "./app";
+import type { Flow } from "./flow";
+import type { Scene } from "./manager";
 import { PauseScene } from "./pause";
+import { showCleared, showDefeat } from "./results";
 
 // Cena de jogo: uma fase inteira num mapa (ondas → chefe), ou a arena de teste do M1–M2
-// (`?arena=test`), com o nascimento provisório por tempo e os sacos de pancada.
-
-export interface DebugFlags {
-  readonly enabled: boolean;
-}
+// (`?arena=test`), com o nascimento provisório por tempo e os sacos de pancada. Quando a fase
+// acaba (derrota ou vitória), empilha a tela de resultado (`results.ts`) por cima.
 
 /** O que a cena joga: o mapa de uma fase, ou a arena de teste. */
 export type GameMode = { kind: "map"; map: MapDef } | { kind: "test" };
+
+/** Tudo o que define uma fase. "Tentar de novo" cria outra cena com os mesmos parâmetros. */
+export interface GameParams {
+  mode: GameMode;
+  seed: number;
+  flow: Flow;
+}
 
 const CONTROLS_HINT =
   "WASD nadar · clique ou J estocar (segure para carregar) · ESPAÇO dash · Esc pausa · F1 depuração";
 
 export class GameScene implements Scene {
-  private world: World;
+  world: World;
   private readonly fx = new Fx();
-  private renderer: WorldRenderer;
+  /** Criado no primeiro desenho: os testes da lógica não têm canvas. */
+  private renderer: WorldRenderer | null = null;
   private readonly intent: PlayerIntent = { ...NO_INTENT };
+  /** A tela de resultado já foi empilhada (para não empilhar duas). */
+  private resultShown = false;
+  private deadMs = 0;
 
   constructor(
-    private readonly input: Input<Action>,
-    private readonly scenes: SceneManager,
-    private readonly debug: DebugFlags,
-    private readonly seed: number,
-    private mode: GameMode,
+    readonly app: App,
+    private params: GameParams,
   ) {
-    const palette: Palette = mode.kind === "map" ? mode.map.palette : PROTOTYPE_PALETTE;
-    this.renderer = new WorldRenderer(palette);
     this.world = this.newWorld();
   }
 
+  get gameParams(): GameParams {
+    return this.params;
+  }
+
   private newWorld(): World {
-    return this.mode.kind === "map" ? createMapWorld(this.mode.map, this.seed) : createWorld(this.seed, buildTestArena());
+    const { mode, seed } = this.params;
+    return mode.kind === "map" ? createMapWorld(mode.map, seed) : createWorld(seed, buildTestArena());
+  }
+
+  private get palette(): Palette {
+    return this.params.mode.kind === "map" ? this.params.mode.map.palette : PROTOTYPE_PALETTE;
   }
 
   step(dtMs: number): void {
-    const input = this.input;
+    const { input } = this.app;
     if (input.wasPressed("pause")) {
-      this.scenes.push(new PauseScene(input, this.scenes));
+      this.app.scenes.push(new PauseScene(this.app, this));
       return;
     }
-    // reiniciar: sempre depois de morrer ou de vencer (ainda não há menus, M6); a qualquer
-    // momento no modo de depuração
-    const over = this.world.playerDead || this.world.phase?.state === "cleared";
-    if (input.wasPressed("debugRestart") && (over || this.debug.enabled)) {
+    // reiniciar na hora: só na depuração. No jogo normal, o resultado tem "Tentar de novo".
+    if (input.wasPressed("debugRestart") && this.app.debug.enabled) {
       this.restart();
       return;
     }
     const w = this.world;
-    if (this.debug.enabled) {
+    if (this.app.debug.enabled) {
       if (input.wasPressed("debugGodMode")) w.godMode = !w.godMode;
       if (input.wasPressed("debugProjectiles")) fireDebugRing(w);
       if (input.wasPressed("debugNextWave")) debugSkipWave(w);
@@ -79,7 +91,7 @@ export class GameScene implements Scene {
       const picked: BossKind | null = input.wasPressed("debugCrab") ? "crab"
         : input.wasPressed("debugJelly") ? "jelly"
         : input.wasPressed("debugEye") ? "eye" : null;
-      if (picked && this.mode.kind !== "test") {
+      if (picked && this.params.mode.kind !== "test") {
         this.pickBoss(picked);
         return;
       }
@@ -101,6 +113,20 @@ export class GameScene implements Scene {
 
     stepWorld(w, it, dtMs);
     this.fx.step(dtMs, w.events.list);
+    if (this.params.flow.kind === "descent") this.params.flow.session.timeMs += dtMs;
+    this.checkEnd(dtMs);
+  }
+
+  /** Derrota e vitória: empilha a tela de resultado (uma vez). */
+  private checkEnd(dtMs: number): void {
+    if (this.resultShown || this.params.flow.kind === "test") return;
+    const w = this.world;
+    if (w.playerDead) {
+      this.deadMs += dtMs;
+      if (this.deadMs >= RESULT.defeatDelayMs) this.resultShown = showDefeat(this);
+    } else if (w.phase?.state === "cleared" && w.phase.t <= 0) {
+      this.resultShown = showCleared(this);
+    }
   }
 
   consumeHitStop(dtMs: number): boolean {
@@ -111,31 +137,33 @@ export class GameScene implements Scene {
 
   render(g: CanvasRenderingContext2D, alpha: number): void {
     const w = this.world;
+    this.renderer ??= new WorldRenderer(this.palette);
     this.renderer.draw(g, w, this.fx, alpha);
     if (!w.phase) drawControlsHint(g, CONTROLS_HINT);
     drawPlayerHud(g, w.player, w.kills);
-    if (this.mode.kind === "map") {
+    if (this.params.mode.kind === "map") {
       const camX = lerp(w.camera.prevX, w.camera.x, alpha);
       const camY = lerp(w.camera.prevY, w.camera.y, alpha);
-      drawPhaseHud(g, w, this.mode.map.titleCard, camX, camY);
+      drawPhaseHud(g, w, this.params.mode.map.titleCard, camX, camY);
     }
-    if (w.playerDead) drawDefeat(g, w.kills);
   }
 
-  /** Reinicia com a mesma semente (a mesma que "tentar de novo" vai usar, GDD §2.3). */
+  /** Depuração (R): reinicia na hora, com a mesma semente e sem fade. */
   restart(): void {
     this.world = this.newWorld();
     this.fx.clear();
+    this.resultShown = false;
+    this.deadMs = 0;
   }
 
   /** Depuração: troca para o mapa do chefe (mesma semente) e vai direto à entrada dele. */
   private pickBoss(boss: BossKind): void {
     const map = mapOfBoss(boss);
-    if (this.mode.kind !== "map" || this.mode.map !== map) {
-      this.mode = { kind: "map", map };
-      this.renderer = new WorldRenderer(map.palette);
-      this.world = this.newWorld();
-      this.fx.clear();
+    const { mode } = this.params;
+    if (mode.kind !== "map" || mode.map !== map) {
+      this.params = { ...this.params, mode: { kind: "map", map } };
+      this.renderer = null;
+      this.restart();
     }
     debugSkipToBoss(this.world);
   }
@@ -237,20 +265,4 @@ function forceNextBossPhase(w: World): void {
     if (!b.active || b.dead || !next) continue;
     b.hp = Math.min(b.hp, b.maxHp * next.hpBelow - 1);
   }
-}
-
-/** Tela de derrota provisória; a de verdade, com opções, chega no M6. */
-function drawDefeat(g: CanvasRenderingContext2D, kills: number): void {
-  const { width: W, height: H } = VIEW;
-  g.fillStyle = "rgba(0,0,0,0.6)";
-  g.fillRect(0, 0, W, H);
-  g.textAlign = "center";
-  g.textBaseline = "alphabetic";
-  g.fillStyle = "#ff8f8f";
-  g.font = `34px ${FONT_FAMILY}`;
-  g.fillText("VOCÊ AFUNDOU", W / 2, H / 2 - 6);
-  g.fillStyle = "#dff0ff";
-  g.font = `14px ${FONT_FAMILY}`;
-  g.fillText(`R para tentar de novo · ${kills} inimigos mortos`, W / 2, H / 2 + 22);
-  g.textAlign = "left";
 }

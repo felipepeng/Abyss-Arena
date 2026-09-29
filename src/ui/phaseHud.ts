@@ -24,7 +24,7 @@ const BOSS_COLORS: Record<BossKind, { bar: readonly string[]; arrow: string }> =
 export function drawPhaseHud(g: CanvasRenderingContext2D, w: World, title: TitleCard, camX: number, camY: number): void {
   const f = w.phase;
   if (!f) return;
-  const { width: W, height: H } = VIEW;
+  const { width: W } = VIEW;
   g.textAlign = "center";
   g.textBaseline = "alphabetic";
 
@@ -49,14 +49,6 @@ export function drawPhaseHud(g: CanvasRenderingContext2D, w: World, title: Title
     else drawOffscreenArrow(g, boss, w, camX, camY);
   }
 
-  if (f.state === "cleared" && f.t <= 0) {
-    g.fillStyle = "rgba(0,0,0,0.45)";
-    g.fillRect(0, 0, W, H);
-    bigText(g, "FASE CONCLUÍDA", 1, "#ffe9a8");
-    g.font = `14px ${FONT_FAMILY}`;
-    g.fillStyle = "#dff0ff";
-    g.fillText("R para jogar de novo", W / 2, H / 2 + 30);
-  }
   g.textAlign = "left";
 }
 

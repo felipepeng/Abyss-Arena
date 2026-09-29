@@ -22,7 +22,13 @@ export type Action =
   | "debugCrab"
   | "debugJelly"
   | "debugEye"
-  | "debugRestart";
+  | "debugRestart"
+  | "menuUp"
+  | "menuDown"
+  | "menuLeft"
+  | "menuRight"
+  | "menuConfirm"
+  | "menuBack";
 
 export const BINDINGS: Bindings<Action> = {
   keys: {
@@ -45,6 +51,13 @@ export const BINDINGS: Bindings<Action> = {
     debugJelly: ["KeyN"],
     debugEye: ["KeyM"],
     debugRestart: ["KeyR"],
+    // Menus. As teclas se sobrepõem às do jogo de propósito: só a cena do topo lê a entrada.
+    menuUp: ["KeyW", "ArrowUp"],
+    menuDown: ["KeyS", "ArrowDown"],
+    menuLeft: ["KeyA", "ArrowLeft"],
+    menuRight: ["KeyD", "ArrowRight"],
+    menuConfirm: ["Enter", "NumpadEnter", "Space", "KeyJ"],
+    menuBack: ["Escape", "Backspace"],
   },
   mouseButtons: {
     attack: [0],

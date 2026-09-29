@@ -4,11 +4,13 @@ import { Display } from "./core/display";
 import { attachDomInput, Input } from "./core/input";
 import { FixedStepLoop, runLoop } from "./core/loop";
 import { parseSeed, randomSeed } from "./core/rng";
+import { Settings } from "./core/settings";
 import { DebugOverlay } from "./debug/overlay";
+import type { App } from "./scenes/app";
 import { GameScene } from "./scenes/game";
 import { SceneManager } from "./scenes/manager";
+import { TitleScene } from "./scenes/title";
 import { MAPS } from "./world/maps/registry";
-import { RIFT } from "./world/maps/rift";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("canvas #game não encontrado");
@@ -17,8 +19,17 @@ const g = canvas.getContext("2d");
 if (!g) throw new Error("Canvas 2D indisponível");
 
 const params = new URLSearchParams(location.search);
-// `?seed=` reproduz uma semente vista no overlay
-const seed = parseSeed(params.get("seed")) ?? randomSeed();
+// `?seed=` reproduz uma semente vista no overlay. Vale para a primeira fase; as seguintes
+// sorteiam a sua (a fase reaproveita a dela ao tentar de novo).
+const urlSeed = parseSeed(params.get("seed"));
+let firstSeed = urlSeed;
+const nextSeed = (): number => {
+  const s = firstSeed ?? randomSeed();
+  firstSeed = null;
+  lastSeed = s;
+  return s;
+};
+let lastSeed = urlSeed ?? 0;
 
 const input = new Input(BINDINGS);
 // antes de o mouse se mexer, o cursor conta como no centro da tela (como no protótipo)
@@ -28,11 +39,19 @@ attachDomInput(input, canvas, VIEW.width, VIEW.height);
 
 const debug = new DebugOverlay(DEBUG.fpsSampleMs, params.has("debug"));
 const scenes = new SceneManager(SCENE.fadeMs, SCENE.fadeColor);
-// Até existirem os menus (M6), o mapa vem da URL: `?map=rift|coral|abyss` (padrão: rift).
-// `?arena=test` abre a arena de teste do M1–M2 (sacos de pancada, nascimento por tempo).
-const map = MAPS[params.get("map") ?? "rift"] ?? RIFT;
-const mode = params.get("arena") === "test" ? ({ kind: "test" } as const) : ({ kind: "map", map } as const);
-scenes.start(new GameScene(input, scenes, debug, seed, mode));
+const app: App = { input, scenes, debug, settings: new Settings(), nextSeed };
+
+// O jogo abre no título. Atalhos de desenvolvimento, que pulam os menus:
+//   `?map=rift|coral|abyss`  abre direto a fase daquele mapa (Arena livre)
+//   `?arena=test`            a arena de teste do M1–M2 (sacos de pancada, nascimento por tempo)
+const shortcutMap = MAPS[params.get("map") ?? ""];
+if (params.get("arena") === "test") {
+  scenes.start(new GameScene(app, { mode: { kind: "test" }, seed: nextSeed(), flow: { kind: "test" } }));
+} else if (shortcutMap) {
+  scenes.start(new GameScene(app, { mode: { kind: "map", map: shortcutMap }, seed: nextSeed(), flow: { kind: "free" } }));
+} else {
+  scenes.start(new TitleScene(app));
+}
 
 const loop = new FixedStepLoop(SIM.stepMs, SIM.maxFrameMs, {
   step(dtMs) {
@@ -53,7 +72,7 @@ const loop = new FixedStepLoop(SIM.stepMs, SIM.maxFrameMs, {
     if (debug.enabled) top?.renderDebug?.(g, alpha);
     const extra = top?.debugLines?.() ?? [];
     if (loop.timeScale !== 1) extra.push(`CÂMERA LENTA ${loop.timeScale}×`);
-    debug.render(g, seed, extra);
+    debug.render(g, lastSeed, extra);
   },
 });
 

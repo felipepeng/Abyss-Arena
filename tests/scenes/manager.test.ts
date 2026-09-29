@@ -27,6 +27,31 @@ const run = (m: SceneManager, ms: number): void => {
   for (let i = 0; i < n; i++) m.step(STEP);
 };
 
+describe("SceneManager.resetTo", () => {
+  it("descarta a pilha inteira (saindo de cada cena) e começa da nova, com fade", () => {
+    const m = new SceneManager(FADE, "#000");
+    const a = new Probe();
+    const b = new Probe(true);
+    const c = new Probe();
+    m.start(a);
+    run(m, FADE);
+    m.push(b);
+    run(m, FADE);
+    expect(m.top).toBe(b);
+
+    expect(m.resetTo(c)).toBe(true);
+    // ainda não trocou: o fade escurece antes
+    expect(m.top).toBe(b);
+    run(m, FADE);
+    expect(m.top).toBe(c);
+    expect(a.exited).toBe(1);
+    expect(b.exited).toBe(1);
+    expect(c.entered).toBe(1);
+    // e a pilha ficou só com a nova: pop não tem para onde voltar
+    expect(m.pop()).toBe(false);
+  });
+});
+
 describe("SceneManager", () => {
   it("a primeira cena entra com fade e só recebe passo depois dele", () => {
     const m = new SceneManager(FADE, "#000");

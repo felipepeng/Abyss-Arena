@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia das telas</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="960" height="540"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: monta as telas de fim e a pausa por cima de uma fase real,
+// como acontece no jogo, e desenha um quadro. Sem teclado: o estado é forçado.
+//   /tools/scenes-preview.html?view=defeat|cleared|clearedFree|final|pause
+import { BINDINGS } from "/src/config/input.ts";
+import { Input } from "/src/core/input.ts";
+import { Settings } from "/src/core/settings.ts";
+import { GameScene } from "/src/scenes/game.ts";
+import { SceneManager } from "/src/scenes/manager.ts";
+import { PauseScene } from "/src/scenes/pause.ts";
+import { showCleared, showDefeat, showFinal } from "/src/scenes/results.ts";
+import { hurtPlayer } from "/src/sim/combat.ts";
+import { RIFT } from "/src/world/maps/rift.ts";
+
+const view = new URLSearchParams(location.search).get("view") ?? "defeat";
+const canvas = document.getElementById("c");
+const g = canvas.getContext("2d");
+const STEP = 1000 / 60;
+
+let seed = 5;
+const app = {
+  input: new Input(BINDINGS),
+  scenes: new SceneManager(300, "#02050b"),
+  debug: { enabled: false },
+  settings: new Settings(),
+  nextSeed: () => seed++,
+};
+const flow = view === "clearedFree" ? { kind: "free" } : { kind: "descent", session: { timeMs: 754000, deaths: 2 } };
+const game = new GameScene(app, { mode: { kind: "map", map: RIFT }, seed: 5, flow });
+app.scenes.start(game);
+const tick = (n) => { for (let i = 0; i < n; i++) { app.scenes.step(STEP); app.input.endStep(); } };
+tick(40);
+
+// joga uns instantes para haver o que ver embaixo (onda 1)
+tick(60 * 6);
+if (view === "defeat") { hurtPlayer(game.world, 999, 0, 0); showDefeat(game); }
+else if (view === "cleared" || view === "clearedFree") { showCleared(game); }
+else if (view === "final") { showFinal(app, flow.session); }
+else if (view === "pause") { app.scenes.push(new PauseScene(app, game)); }
+tick(60);
+
+app.scenes.render(g, 1);
+document.title = "pronto";
+</script>
+</body>
+</html>

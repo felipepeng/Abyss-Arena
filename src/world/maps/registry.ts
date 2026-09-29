@@ -8,6 +8,9 @@ import { RIFT } from "./rift";
 
 export const MAPS: Readonly<Record<string, MapDef>> = { rift: RIFT, coral: CORAL, abyss: ABYSS };
 
+/** Os três mapas na ordem da Descida, para a seleção da Arena livre. */
+export const MAP_LIST: readonly MapDef[] = [RIFT, CORAL, ABYSS];
+
 /** Cada chefe mora no próprio mapa (GDD §2.2): escolher o chefe escolhe o mapa. */
 export function mapOfBoss(boss: BossKind): MapDef {
   return Object.values(MAPS).find((m) => m.boss === boss) ?? RIFT;
