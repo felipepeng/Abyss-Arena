@@ -47,6 +47,10 @@ export const LAMPREY_DEF: EnemyDef = {
         if (dist < LAMPREY.sightR) {
           e.vx += (tx / td) * LAMPREY.accel * dt;
           e.vy += (ty / td) * LAMPREY.accel * dt;
+        } else if (len(e.vx, e.vy) < LAMPREY.farSpeed) {
+          // sem ver o jogador, vai devagar até ele em vez de ficar parada
+          e.vx += (tx / td) * LAMPREY.accel * dt;
+          e.vy += (ty / td) * LAMPREY.accel * dt;
         }
         if (dist < LAMPREY.attackRange && e.t <= 0) return "telegraph";
       },

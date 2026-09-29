@@ -36,14 +36,14 @@ export const RIFT_WAVES = [
     enemies: [
       { kind: "fish", count: 3 },
       { kind: "circler", count: 2 },
-      { kind: "hermit", count: 1 },
+      { kind: "hermit", count: 2 },
     ],
   },
   {
     enemies: [
       { kind: "fish", count: 3 },
       { kind: "circler", count: 2 },
-      { kind: "hermit", count: 2 },
+      { kind: "hermit", count: 3 },
       { kind: "urchin", count: 2 },
     ],
   },

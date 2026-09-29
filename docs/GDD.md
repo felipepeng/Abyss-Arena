@@ -111,7 +111,7 @@ Substituem o spawner por tempo do protótipo (CONTEXTO §5.3).
 
 | Mapa | Onda 1 | Onda 2 | Onda 3 |
 |---|---|---|---|
-| Leito das Fendas | 4 peixes | 3 peixes, 2 circuladores, 1 ermitão | 3 peixes, 2 circuladores, 2 ermitões, 2 ouriços |
+| Leito das Fendas | 4 peixes | 3 peixes, 2 circuladores, 2 ermitões | 3 peixes, 2 circuladores, 3 ermitões, 2 ouriços |
 | Jardim de Corais | 3 peixes, 2 medusinhas | 2 peixes, 2 circuladores, 2 medusinhas, 2 enguias | 3 peixes, 3 circuladores, 3 medusinhas, 3 enguias |
 | Fosso do Abismo | 4 peixes, 2 vigias | 3 circuladores, 2 vigias, 4 lampreias | 3 peixes, 3 circuladores, 3 vigias, 8 lampreias |
 
@@ -250,6 +250,10 @@ Detalhes completos no CONTEXTO §5.
 | Recuperação | 520 ms | 700 ms |
 | Dano (ataque / contato) | 9 / 5 | 11 / 6 |
 
+**Fora do raio de visão** (Peixe 300 px, Lampreia 560 px), eles não ficam parados esperando o
+jogador: avançam devagar (40 e 70 px/s) e passam a perseguir de verdade quando entram no raio.
+É uma mudança em relação ao protótipo, onde o peixe parava.
+
 ### 6.2 Inimigos exclusivos 🟡 Proposta
 
 Cada mapa acrescenta dois inimigos, que antecipam a gramática do chefe daquele mapa.
@@ -266,7 +270,8 @@ Caranguejo exige.
 | Ataque | aviso de 450 ms (pinça se abre e brilha) → golpe de 160 ms num raio de 40 px à frente |
 | Dano (ataque / contato) | 12 / 6 |
 
-Ele se vira para o jogador a no máximo 2,2 rad/s, então circular por ele funciona.
+Ele se vira para o jogador a no máximo 1,8 rad/s, então circular por ele funciona. (Eram 2,2 rad/s
+e 1 e 2 ermitões nas ondas 2 e 3: girava rápido demais para ser acertado, e o jogo pediu mais deles.)
 
 #### Ouriço — Leito das Fendas · **nega área, estático**
 Fica em posições fixas do mapa, geralmente perto das formações rochosas. Ensina a **ler
@@ -343,8 +348,8 @@ Os números abaixo não estavam no GDD e saíram de `src/config/enemies/`; todos
 
 - **Ermitão:** a pinça alcança 40 px do centro dele até a borda do jogador, dentro do mesmo arco
   de ±60° da blindagem. Recuperação de 600 ms e espera de 500–1200 ms até o próximo aviso. Ele
-  continua girando a 2,2 rad/s durante o aviso; o golpe sai para onde ele estiver olhando.
-  Regra 3: 2,2 rad/s · 56 px (o alcance do aviso) = 123 px/s, abaixo dos 250.
+  continua girando a 1,8 rad/s durante o aviso; o golpe sai para onde ele estiver olhando.
+  Regra 3: 1,8 rad/s · 56 px (o alcance do aviso) = 101 px/s, abaixo dos 250.
 - **Ouriço:** o ciclo de 2400 ms é 1900 ms de descanso + 500 ms de aviso. O espinho tem raio 3
   e some a 110 px da borda do ouriço. Cada ouriço nasce com um relógio e um ângulo sorteados, para
   dois ouriços não dispararem juntos. Ele ocupa uma das posições fixas do mapa, livre e a

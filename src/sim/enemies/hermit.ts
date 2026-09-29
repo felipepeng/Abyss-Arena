@@ -6,7 +6,7 @@ import type { Enemy, EnemyDef } from "./types";
 
 // Ermitão: persegue devagar, avisa (a pinça se abre e brilha), golpeia à frente e se recupera.
 // A frente dele é blindada: um acerto de lança dentro de ±60° é bloqueado. Ele só gira a
-// 2,2 rad/s, então o jogador vence circulando (GDD §6.2).
+// 1,8 rad/s, então o jogador vence circulando (GDD §6.2).
 
 /** Vira a frente para o jogador, no máximo `turnRate`. */
 function faceTarget(e: Enemy, w: World, dt: number): void {
@@ -67,7 +67,7 @@ export const HERMIT_DEF: EnemyDef = {
       update(e, w, dt) {
         e.vx *= 1 - HERMIT.telegraphBrake * dt;
         e.vy *= 1 - HERMIT.telegraphBrake * dt;
-        // continua girando, a 2,2 rad/s: quem contorna durante o aviso sai da linha do golpe
+        // continua girando, a 1,8 rad/s: quem contorna durante o aviso sai da linha do golpe
         faceTarget(e, w, dt);
         if (e.t <= 0) return "strike";
       },

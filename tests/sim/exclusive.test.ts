@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EEL } from "../../src/config/enemies/eel";
+import { FISH } from "../../src/config/enemies/fish";
 import { HERMIT } from "../../src/config/enemies/hermit";
 import { JELLYLING } from "../../src/config/enemies/jellyling";
 import { LAMPREY } from "../../src/config/enemies/lamprey";
@@ -94,7 +95,7 @@ describe("Ermitão: blindagem frontal", () => {
     expect(hitStop).toBe(SPEAR.hitStopMs);
   });
 
-  it("só gira a 2,2 rad/s: contornar por ele funciona", () => {
+  it("só gira a HERMIT.turnRate: contornar por ele funciona", () => {
     const w = openWorld({ start: { x: 600, y: 600 } });
     w.godMode = true;
     const e = spawn(w, "hermit", 700, 600);
@@ -102,10 +103,9 @@ describe("Ermitão: blindagem frontal", () => {
     e.ang = e.prevAng = 0;
     const before = e.ang;
     steps(w, 30, (w) => intent({ aimX: w.player.x, aimY: w.player.y }));
-    // 0,5 s a 2,2 rad/s: gira ~1,1 rad, não os ~3,14 rad da volta inteira
+    // 0,5 s na taxa dele, não os ~3,14 rad da volta inteira
     const turned = Math.abs(e.ang - before);
-    expect(turned).toBeGreaterThan(0.9);
-    expect(turned).toBeLessThan(1.3);
+    expect(turned).toBeCloseTo(HERMIT.turnRate * 0.5, 1);
   });
 
   it("regra 3: a frente que gira (e leva a pinça) obedece ω · distância < 250 px/s", () => {
@@ -267,6 +267,27 @@ describe("Lampreia: enxame frágil", () => {
   });
 });
 
+describe("sem ver o jogador, vão devagar até ele", () => {
+  it.each([
+    ["fish", 1300, FISH.sightR, FISH.farSpeed],
+    ["lamprey", 1600, LAMPREY.sightR, LAMPREY.farSpeed],
+  ] as const)("%s longe do raio de visão se aproxima, sem passar da velocidade lenta", (kind, x, sightR, farSpeed) => {
+    const w = openWorld({ grid: openGrid(140, 60) });
+    w.godMode = true;
+    const e = spawn(w, kind, x, 600);
+    e.t = 1e9; // não ataca durante o teste
+    let maxSpeed = 0;
+    steps(w, 240, (w) => {
+      // só conta enquanto ainda está fora do raio de visão (dentro dele, a perseguição é normal)
+      if (len(e.x - w.player.x, e.y - w.player.y) >= sightR) maxSpeed = Math.max(maxSpeed, len(e.vx, e.vy));
+      return aimRight(w);
+    });
+    expect(x - e.x).toBeGreaterThan(60);
+    // um passo de aceleração acima do teto lento (accel · dt), no máximo
+    expect(maxSpeed).toBeLessThan(farSpeed + 20);
+  });
+});
+
 describe("linha de visão", () => {
   /** Arena com uma parede inteira entre o jogador (x=600) e a criatura (x=1000). */
   function walled(kind: EnemyKind): World {
@@ -375,7 +396,7 @@ describe("ondas e posições dos mapas", () => {
 
   it("a composição segue o GDD §3.2", () => {
     const rows: readonly [string, typeof RIFT.waves, Record<string, number>[]][] = [
-      ["Leito", RIFT.waves, [{ fish: 4 }, { fish: 3, circler: 2, hermit: 1 }, { fish: 3, circler: 2, hermit: 2, urchin: 2 }]],
+      ["Leito", RIFT.waves, [{ fish: 4 }, { fish: 3, circler: 2, hermit: 2 }, { fish: 3, circler: 2, hermit: 3, urchin: 2 }]],
       ["Coral", CORAL.waves, [
         { fish: 3, jellyling: 2 },
         { fish: 2, circler: 2, jellyling: 2, eel: 2 },

@@ -10,6 +10,12 @@ export const FISH = {
   drag: 3.0,
   /** Só persegue o jogador dentro deste raio. */
   sightR: 300,
+  /**
+   * Fora do raio de visão ele avança em direção ao jogador a esta velocidade, em vez de ficar
+   * parado até o jogador chegar perto (o protótipo ficava). Só acelera enquanto estiver mais
+   * lento que isto; o arrasto cuida do resto, então não há tranco ao sair da investida.
+   */
+  farSpeed: 40,
   /** Perto disto (e com o cronômetro zerado) começa o aviso da investida. */
   chargeRange: 200,
   /**

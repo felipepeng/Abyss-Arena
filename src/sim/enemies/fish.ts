@@ -46,6 +46,10 @@ export const FISH_DEF: EnemyDef = {
           // perpendicular à direção do jogador: serpenteia em vez de vir reto
           e.vx += -(dy / dist) * Math.sin(wob) * FISH.wobbleAccel * dt;
           e.vy += (dx / dist) * Math.sin(wob) * FISH.wobbleAccel * dt;
+        } else if (len(e.vx, e.vy) < FISH.farSpeed) {
+          // sem ver o jogador, vai devagar até ele em vez de ficar parado
+          e.vx += (dx / dist) * FISH.accel * dt;
+          e.vy += (dy / dist) * FISH.accel * dt;
         }
         if (dist < FISH.chargeRange && e.t <= 0) return "telegraph";
       },

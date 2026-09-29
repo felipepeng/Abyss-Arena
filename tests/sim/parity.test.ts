@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FISH } from "../../src/config/enemies/fish";
 import { activateBoss, createBoss } from "../../src/sim/bosses/runner";
 import type { Boss } from "../../src/sim/bosses/types";
 import { spawnEnemy } from "../../src/sim/enemies/runner";
@@ -276,9 +277,17 @@ describe("paridade com o protótipo: inimigos", () => {
     expectSameEnemyTrace(replay(w, len("fishWhileSwimming"), script), T.fishWhileSwimming ?? []);
   });
 
-  it("peixe fora do alcance de visão não persegue", () => {
+  // DIFERENÇA PROPOSITAL do protótipo (GDD §6.1): lá o peixe fora do raio de visão (300 px)
+  // ficava parado; aqui avança devagar (FISH.farSpeed). O rastro `fishFarAway` continua gravado
+  // para documentar o comportamento original.
+  it("peixe fora do alcance de visão avança devagar, e não parado como no protótipo", () => {
     const w = protoWorld("fish", 340, 0);
-    expectSameEnemyTrace(replay(w, len("fishFarAway"), () => ({})), T.fishFarAway ?? []);
+    replay(w, 30, () => ({}));
+    const e = w.enemies.get(0);
+    const proto = (T.fishFarAway ?? [])[29];
+    expect(proto?.evx ?? 0).toBe(0);
+    expect(e.vx).toBeLessThan(0);
+    expect(Math.abs(e.vx)).toBeLessThanOrEqual(FISH.farSpeed + 1);
   });
 
   it("circulador orbita, avisa, estoca e descansa", () => {

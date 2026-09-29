@@ -11,6 +11,8 @@ export const LAMPREY = {
   accel: 1100,
   drag: 3.0,
   sightR: 560,
+  /** Fora do raio de visão avança devagar até o jogador, em vez de ficar parada. */
+  farSpeed: 70,
   /**
    * Cada uma mira um ponto deslocado do jogador (sorteado ao nascer) que se fecha sobre ele ao
    * chegar perto. Os inimigos não colidem entre si, e sem isto o enxame virava uma bola só.

@@ -10,9 +10,10 @@ export const HERMIT = {
   /**
    * Velocidade máxima de giro do corpo, rad/s. A frente do ermitão (onde fica a blindagem e a
    * pinça) só segue o jogador a esta taxa, então circular por ele funciona.
-   * Regra 3 (ω · distância < 250 px/s): 2,2 · 56 (o alcance do aviso) = 123 px/s.
+   * Regra 3 (ω · distância < 250 px/s): 1,8 · 56 (o alcance do aviso) = 101 px/s.
+   * Era 2,2 (GDD original); baixou para 1,8 porque ele girava rápido demais para ser acertado.
    */
-  turnRate: 2.2,
+  turnRate: 1.8,
   /** Meio arco da frente: um acerto dentro dele é bloqueado e a pinça alcança dentro dele. */
   frontHalfArc: Math.PI / 3,
   /** Começa o aviso quando o jogador está a menos disto do centro dele. */
