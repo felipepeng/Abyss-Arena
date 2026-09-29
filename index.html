@@ -11,8 +11,9 @@
         overflow: hidden;
       }
       body { display: flex; align-items: center; justify-content: center; }
-      /* Canvas interno fixo de 960 × 540, escalado mantendo 16:9 (letterbox).
-         Sem image-rendering: pixelated, porque a arte é vetorial. */
+      /* O CSS só decide o tamanho na tela, mantendo 16:9 (letterbox). A imagem interna
+         acompanha esse tamanho em pixels reais (core/display.ts), para a arte vetorial
+         ficar nítida; o jogo continua pensando em 960 × 540 lógicos. */
       #game {
         display: block;
         width: min(100vw, calc(100vh * 16 / 9));

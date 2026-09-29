@@ -8,7 +8,8 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M1 — Feel do jogador** (não iniciado). M0 pronto em 2026-09-29.
+**Marco atual: M1 — Feel do jogador** (🟨 implementado; falta o teste lado a lado de quem joga).
+M0 pronto em 2026-09-29.
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
 
 Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ pronto
@@ -36,24 +37,30 @@ Infraestrutura sem gameplay.
 
 ---
 
-## ⬜ M1 — Feel do jogador
+## 🟨 M1 — Feel do jogador
 
 Portar o que o protótipo tem de mais valioso, com **paridade de sensação**.
 
-- [ ] `sim/physics.ts`: integrador de nado com arrasto implícito e teto.
-- [ ] `world/grid.ts` + `sim/collision.ts`: separação por eixo com margem, sub-passos, invariante.
-- [ ] Arena de teste simples (borda + alguns blocos), sem `MapDef` ainda.
-- [ ] Jogador: nado, dash **com invulnerabilidade nos primeiros 100 ms**, lança nas 3 fases,
+- [x] `sim/physics.ts`: integrador de nado com arrasto implícito e teto.
+- [x] `world/grid.ts` + `sim/collision.ts`: separação por eixo com margem, sub-passos, invariante.
+- [x] Arena de teste simples (borda + alguns blocos), sem `MapDef` ainda.
+- [x] Jogador: nado, dash **com invulnerabilidade nos primeiros 100 ms**, lança nas 3 fases,
       carga, hitbox em dois círculos.
-- [ ] Câmera com look-ahead, em mundo maior que a tela.
-- [ ] Render: jogador e lança como no protótipo, interpolação, fundo e rocha em cache.
-- [ ] FX: bolhas, tremor, hit-stop. Um alvo parado (saco de pancada) para testar o impacto.
-- [ ] Testes de nado, dash, lança e colisão (ARCHITECTURE §10.2).
+- [x] Câmera com look-ahead, em mundo maior que a tela.
+- [x] Render: jogador e lança como no protótipo, interpolação, fundo e rocha em cache.
+- [x] FX: bolhas, tremor, hit-stop. Um alvo parado (saco de pancada) para testar o impacto.
+- [x] Testes de nado, dash, lança e colisão (ARCHITECTURE §10.2).
 
 **Pronto quando:** jogado lado a lado com `prototipo/index.html`, o nado, o dash, a estocada e
 o impacto no saco de pancada são indistinguíveis, **exceto** pela invulnerabilidade do dash e
 pela suavização do degrau do clamp (se for adotada). Os testes numéricos batem com o CONTEXTO
-(267 ms até 250 px/s, ~70 px de deslizada, ~89 px de dash).
+(267 ms até 250 px/s, ~70 px de deslizada, ~82 px de dash).
+
+**Estado (2026-09-29):** a parte numérica está feita. Nado, dash, lança com e sem carga, dash
+cancelando a recuperação e o acerto num peixe batem com o **código do protótipo** passo a passo
+(`tests/sim/parity.test.ts`). A suavização do degrau do clamp **não** foi adotada. Falta o teste
+lado a lado, que só quem joga pode fazer: `npm run dev` de um lado e `prototipo/index.html` do
+outro.
 
 ---
 

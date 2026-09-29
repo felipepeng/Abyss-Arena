@@ -140,9 +140,13 @@ depois de soltar.
 | Parâmetro | Protótipo | **Jogo** |
 |---|---|---|
 | Velocidade | 640 px/s | 640 px/s |
-| Duração | 140 ms (≈89 px) | 140 ms (≈89 px) |
+| Duração | 140 ms (≈82 px) | 140 ms (≈82 px) |
 | Recarga | 1200 ms | 1200 ms |
 | **Invulnerabilidade** | nenhuma | **primeiros 100 ms** |
+
+A distância é a medida no passo fixo, com o arrasto reduzido do dash: **82,4 px**, a mesma do
+protótipo rodando o código original. Os "≈89 px" que o CONTEXTO registrava eram o nominal
+640 × 0,14.
 
 - Vai na direção da **mira**. Cancela a recuperação da estocada. Segurar a tecla redispara.
 - **Durante a invulnerabilidade**, o jogador atravessa projéteis e contato sem sofrer dano. Os

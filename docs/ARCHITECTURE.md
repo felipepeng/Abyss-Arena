@@ -29,21 +29,29 @@ Nenhuma dependência de runtime além do navegador. Dependências de desenvolvim
 src/
   main.ts            ponto de entrada: cria canvas, laço, gerenciador de cenas
   core/              infraestrutura sem conhecimento de jogo
-    loop.ts          passo fixo 60 Hz + acumulador + alpha de interpolação
+    loop.ts          passo fixo 60 Hz + acumulador + alpha de interpolação + escala de tempo
     rng.ts           RNG com semente (mulberry32 ou similar), instanciável
     math.ts          clamp, lerp, angLerp, len, vetores
     input.ts         teclado/mouse → AÇÕES, genérico: as ações e teclas vêm de config/input.ts
     events.ts        barramento de eventos da simulação (hit, hurt, death, telegraph...)
     pool.ts          pool de objetos com swap-remove
+    display.ts       imagem do canvas em pixels reais + escala lógico → real por frame
   config/            todo número de ajuste, separado por domínio
     system.ts        resolução, passo fixo, teto por frame, fade, fonte
     input.ts         ações do jogo e atalhos (jogo + depuração)
-    player.ts  spear.ts  camera.ts  particles.ts  pickups.ts  waves.ts
+    world.ts         tamanho do bloco, margem da colisão
+    fx.ts            bolhas e tremor por evento
+    palette.ts       paletas de fundo e rocha
+    dummy.ts         sacos de pancada da arena de teste (M1; saem no M2)
+    player.ts  spear.ts  camera.ts  pickups.ts  waves.ts
     enemies/   fish.ts circler.ts hermit.ts urchin.ts jellyling.ts eel.ts watcher.ts lamprey.ts
     bosses/    crab.ts jelly.ts eye.ts
     maps/      rift.ts coral.ts abyss.ts
   sim/               simulação pura (determinística dada a semente)
-    world.ts         estado do mundo: grade, entidades, projéteis, pickups, câmera-alvo
+    world.ts         estado do mundo e `stepWorld`: grade, entidades, projéteis, pickups, câmera
+    body.ts          corpo físico comum (posição, velocidade, prev*, raios)
+    camera.ts        câmera com look-ahead (mora aqui porque a mira depende dela)
+    events.ts        tipos dos eventos da simulação
     physics.ts       integrador de nado (aceleração, arrasto implícito, teto)
     collision.ts     corpo × grade, separação por eixo com margem
     player.ts        nado, dash (com i-frames), máquina da lança, hitbox
@@ -58,6 +66,7 @@ src/
     mapdef.ts        tipos do formato de mapa híbrido
     builder.ts       MapDef + semente → grade + marcadores
     maps/            os 3 layouts desenhados à mão
+    testArena.ts     arena de teste do M1 (sai quando os mapas existirem)
   render/            só lê estado; nunca escreve na simulação
     renderer.ts      orquestra camadas, câmera, interpolação, tremor
     background.ts    gradiente + colunas de luz (cache por mapa)
@@ -66,6 +75,7 @@ src/
     telegraphs.ts    desenho dos avisos
     projectiles.ts  particles.ts  pickups.ts
   fx/                efeitos de apresentação
+    fx.ts            reage aos eventos da simulação (bolhas, tremor)
     particles.ts     bolhas (pool)
     shake.ts         tremor de tela
   audio/
@@ -83,7 +93,9 @@ src/
     overlay.ts       hitboxes, estados, velocidades, FPS
     cheats.ts        pular onda, invocar chefe, invencível
 tests/               Vitest, espelhando src/sim e src/world
-index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox
+  fixtures/          rastros gravados do protótipo (paridade)
+tools/               scripts de desenvolvimento (gravar rastros do protótipo)
+index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox (§7)
 public/              arquivos estáticos (favicon)
 prototipo/           o protótipo original, referência de paridade
 ```
@@ -332,14 +344,28 @@ com as entidades.
 
 ## 7. Render
 
-- **Camadas, na ordem:** fundo (cache) → rocha (cache) → pickups → projéteis de baixo → avisos
-  → criaturas → jogador → lança → partículas → HUD (sem tremor) → overlays de cena (fade,
-  cartão de título, menus).
+- **Camadas, na ordem:** fundo (cache) → rocha (cache) → partículas → pickups → projéteis de
+  baixo → avisos → criaturas → jogador (com a lança **por baixo** do corpo) → HUD (sem tremor) →
+  overlays de cena (fade, cartão de título, menus). As bolhas ficam sob as criaturas e a haste
+  da lança sob o corpo, como no protótipo: as bolhas do acerto nascem atrás do alvo, e a haste
+  começa a 6 px do centro do mergulhador.
 - **Cache em `OffscreenCanvas`:** o fundo é renderizado uma vez por mapa, numa altura igual à
-  da tela. A rocha é renderizada no tamanho do mundo inteiro e só é redesenhada, por blocos, quando
-  a grade fica suja (erosão, pilar dissolvido). No frame, só se copia a região da câmera.
-- **Resolução:** canvas interno fixo de 960 × 540, escalado por CSS mantendo proporção (letterbox).
-  Sem `image-rendering: pixelated`, porque a arte é vetorial.
+  da tela. A rocha é renderizada no tamanho do mundo inteiro e só é redesenhada quando a grade
+  muda (`Grid.version`: erosão, pilar dissolvido). No frame, só se copia a região da câmera. Hoje
+  o redesenho é do mundo inteiro; redesenhar só os blocos tocados fica para quando a erosão
+  existir (M4), se o custo aparecer.
+- **Resolução:** o jogo pensa num espaço **lógico** fixo de 960 × 540. O CSS decide o tamanho do
+  canvas na tela, mantendo 16:9 (letterbox), e a **imagem interna tem o tamanho real** em que o
+  canvas aparece, já com o `devicePixelRatio` (`core/display.ts`, refeito por `ResizeObserver`).
+  Cada frame começa com a escala lógico → real, então nenhum desenhador sabe disso, e o mouse é
+  convertido direto para coordenadas lógicas. *Decisão de 2026-09-29:* a primeira versão desenhava
+  em 960 × 540 e deixava o CSS esticar, que é técnica de pixel art; com arte vetorial isso só
+  borrava o texto e as linhas finas.
+- **Caches na escala real:** a rocha é desenhada no cache já na escala da tela, com as bordas
+  dos blocos arredondadas para pixels inteiros (sem emendas em escalas fracionárias, como 125%),
+  e o cache é refeito quando a escala muda. A área do cache tem teto de 16 milhões de pixels
+  (limite de alguns navegadores); acima disso, a rocha fica um pouco menos nítida em vez de
+  falhar. O gradiente de fundo fica em 960 × 540: é liso e não perde nada ao ampliar.
 - **Interpolação:** todo desenhador recebe `alpha` e usa `prev*`/atual.
 
 ---
@@ -429,7 +455,7 @@ A semente atual aparece no overlay, para que um bug de mapa possa ser reproduzid
 Só lógica pura de `sim/` e `world/`, sem DOM:
 
 - **Nado:** 0 → 250 px/s em ~267 ms; a velocidade cai a 10% em ~700 ms depois de soltar.
-- **Dash:** percorre ~89 px; invulnerável nos passos de 0 a 100 ms e vulnerável depois; cancela a
+- **Dash:** percorre ~82 px; invulnerável nos passos de 0 a 100 ms e vulnerável depois; cancela a
   recuperação da lança.
 - **Lança:** tempos de cada fase; um acerto por inimigo por golpe; interpolação da carga.
 - **Funil de dano:** 667 ms de invulnerabilidade; metade do dano fora do ataque.
@@ -443,6 +469,11 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
   nascimento está em água; os corredores do coral têm ≥ 80 px.
 - **Harness de simulação:** roda N segundos com entradas roteirizadas (ex.: "jogador parado
   atrás de um pilar") e mede o dano recebido, como foi feito no protótipo para o Olho.
+- **Paridade com o protótipo:** `tools/prototype-trace.mjs` roda o **código original** de
+  `prototipo/index.html` num Chromium headless, passo a passo, com roteiros de entrada, e grava
+  os rastros em `tests/fixtures/prototype-traces.json`. `tests/sim/parity.test.ts` repete os
+  mesmos roteiros na simulação nova e compara posição, velocidade e estado a cada passo (6 casas
+  decimais). Ao portar um sistema com números de feel, acrescente um roteiro nos dois lados.
 
 ---
 
@@ -468,4 +499,4 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
 | Sem semente | `core/rng.ts` + semente no overlay (§10.1) |
 | `freeSpot` por tentativa e erro | zonas de nascimento desenhadas no mapa (§6.3) |
 | Código morto (`knockbackTakenMult`, `didHit`...) | não portar; `noUnusedLocals` no tsconfig |
-| Degrau do clamp ao fim do dash | aproximar o teto de 250 com arrasto extra nos primeiros ~80 ms depois do dash, em vez de cortar num frame. **Validar no M1 se não mexe no feel** |
+| Degrau do clamp ao fim do dash | **Não adotado no M1.** O M1 portou o degrau exatamente como está (os testes de paridade o cobrem). A suavização continua possível: aproximar o teto de 250 com arrasto extra nos primeiros ~80 ms depois do dash. Só entra se o teste lado a lado mostrar que o degrau incomoda, e com o motivo registrado (regra 7) |

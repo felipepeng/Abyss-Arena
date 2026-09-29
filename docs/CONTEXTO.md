@@ -248,7 +248,9 @@ mesmo frame.
 ### 3.2 Dash
 
 640 px/s por 140 ms, recarga de 1200 ms, **sem invulnerabilidade**. A distância percorrida é
-medida na simulação em **89 px** — pouco mais de quatro corpos do jogador. Curto de
+medida na simulação em **89 px** — pouco mais de quatro corpos do jogador. *(Correção de
+2026-09-29: rodando o código do protótipo passo a passo, o dash percorre **82,4 px** nos 140 ms.
+Os 89 px são o nominal 640 × 0,14, sem o arrasto.)* Curto de
 propósito: é reposicionamento, não fuga.
 
 Três propriedades importantes:
@@ -665,7 +667,7 @@ Todos os parâmetros do `CONFIG`, com unidade e efeito.
 | `player.drag` | 3,4 | 1/s | arrasto da água (35% disso no dash/estocada) |
 | `player.hp` | 100 | — | vida |
 | `player.dash.speed` | 640 | px/s | velocidade inicial do dash |
-| `player.dash.durationMs` | 140 | ms | duração (≈89 px percorridos) |
+| `player.dash.durationMs` | 140 | ms | duração (≈82 px percorridos; ver §3.2) |
 | `player.dash.cooldownMs` | 1200 | ms | recarga |
 | `player.hurt.invulnMs` | 667 | ms | invulnerabilidade após dano |
 | `player.hurt.knockback` | 330 | px/s | empurrão ao ser ferido |

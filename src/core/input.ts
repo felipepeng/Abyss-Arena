@@ -30,6 +30,7 @@ export class Input<A extends string> {
   // Flanco de subida acumulado até o próximo passo. Um toque que começa e termina entre
   // dois passos ainda é visto como "pressionado" uma vez.
   private readonly pressed = new Set<A>();
+  private readonly buttonsPressed = new Set<number>();
   private readonly keyActions = new Map<string, A[]>();
   private readonly buttonActions = new Map<number, A[]>();
 
@@ -60,6 +61,7 @@ export class Input<A extends string> {
     const actions = this.buttonActions.get(button);
     if (!this.buttonsDown.has(button)) {
       this.buttonsDown.add(button);
+      this.buttonsPressed.add(button);
       if (actions) for (const a of actions) this.pressed.add(a);
     }
     return actions !== undefined;
@@ -93,9 +95,18 @@ export class Input<A extends string> {
     return this.pressed.has(action);
   }
 
+  /**
+   * O botão do mouse foi pressionado desde o último passo. Serve para saber se um toque de
+   * ação veio do mouse ou de uma tecla (a mira muda de modo conforme a origem).
+   */
+  wasMousePressed(button: number): boolean {
+    return this.buttonsPressed.has(button);
+  }
+
   /** Fim do passo: os flancos foram consumidos. */
   endStep(): void {
     this.pressed.clear();
+    this.buttonsPressed.clear();
     this.mouseMoved = false;
   }
 }
@@ -107,16 +118,18 @@ function addTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
 }
 
 /**
- * Liga o `Input` aos eventos do navegador. O mouse é convertido para coordenadas do canvas
- * interno (`width` × `height`), descontando a escala do letterbox.
+ * Liga o `Input` aos eventos do navegador. O mouse é convertido para as coordenadas LÓGICAS
+ * do jogo (`logicalWidth` × `logicalHeight`), qualquer que seja o tamanho do canvas na tela.
  */
-export function attachDomInput<A extends string>(input: Input<A>, canvas: HTMLCanvasElement): void {
+export function attachDomInput<A extends string>(
+  input: Input<A>,
+  canvas: HTMLCanvasElement,
+  logicalWidth: number,
+  logicalHeight: number,
+): void {
   const toCanvas = (e: MouseEvent): [number, number] => {
     const r = canvas.getBoundingClientRect();
-    return [
-      ((e.clientX - r.left) * canvas.width) / r.width,
-      ((e.clientY - r.top) * canvas.height) / r.height,
-    ];
+    return [((e.clientX - r.left) * logicalWidth) / r.width, ((e.clientY - r.top) * logicalHeight) / r.height];
   };
 
   window.addEventListener("keydown", (e) => {

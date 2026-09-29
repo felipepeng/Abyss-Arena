@@ -23,6 +23,8 @@ export const SCENE = {
 export const DEBUG = {
   /** Janela de amostragem do contador de FPS. */
   fpsSampleMs: 400,
+  /** Escala de tempo da câmera lenta (F7). */
+  slowMoScale: 0.25,
 } as const;
 
 /** Fonte de todo texto desenhado no canvas, a mesma do protótipo. */

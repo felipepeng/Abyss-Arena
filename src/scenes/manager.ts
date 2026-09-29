@@ -14,6 +14,10 @@ export interface Scene {
   render(g: CanvasRenderingContext2D, alpha: number): void;
   /** Ver `LoopHooks.consumeHitStop`. */
   consumeHitStop?(dtMs: number): boolean;
+  /** Linhas extras do overlay de depuração (F1). */
+  debugLines?(): string[];
+  /** Desenho de depuração por cima da cena (hitboxes, velocidades). */
+  renderDebug?(g: CanvasRenderingContext2D, alpha: number): void;
 }
 
 type Change =

@@ -18,6 +18,11 @@ export interface LoopHooks {
 }
 
 export class FixedStepLoop {
+  /**
+   * Multiplica o tempo real antes do acumulador. 1 = normal; a câmera lenta de depuração
+   * usa menos. A simulação continua em passos iguais: só chegam menos passos por segundo.
+   */
+  timeScale = 1;
   private acc = 0;
   private frozen = false;
 
@@ -30,7 +35,7 @@ export class FixedStepLoop {
   /** Roda os passos devidos a `elapsedMs` de tempo real e devolve o alpha de interpolação. */
   advance(elapsedMs: number): number {
     // teto: depois de uma travada (aba em segundo plano, GC) o jogo não "corre" para alcançar
-    this.acc += Math.min(Math.max(elapsedMs, 0), this.maxFrameMs);
+    this.acc += Math.min(Math.max(elapsedMs, 0), this.maxFrameMs) * this.timeScale;
     // A tolerância evita que um múltiplo exato do passo (100 ms = 6 passos) perca o último
     // passo para o erro de ponto flutuante de 1000/60 somado várias vezes.
     while (this.acc >= this.stepMs - STEP_EPSILON_MS) {
