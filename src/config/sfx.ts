@@ -56,7 +56,6 @@ export type SfxName =
   | "playerDie"
   | "pickup"
   | "enemyDie"
-  | "spawn"
   | "bossAppear"
   | "bossPhase"
   | "bossImpact"
@@ -75,13 +74,16 @@ export const SFX: Readonly<Record<SfxName, SfxDef>> = {
   charge: {
     layers: [{ kind: "osc", wave: "triangle", freq: [220, 880], gain: 0.16, durMs: 620, attackMs: 320 }],
   },
-  // golpe grave e seco + estalo
+  // baque grave e macio: o impacto vem do grave que cai rápido de altura, não de um estalo agudo.
+  // Um acerto acontece várias vezes por segundo, então nada aqui é áspero (sem onda quadrada nem
+  // ruído agudo) e o pico é baixo.
   hit: {
     priority: true,
+    minGapMs: 45,
     layers: [
-      { kind: "osc", wave: "sine", freq: [140, 48], gain: 0.62, durMs: 210 },
-      { kind: "osc", wave: "square", freq: [330, 90], gain: 0.2, durMs: 55, attackMs: 1 },
-      { kind: "noise", gain: 0.3, durMs: 45, attackMs: 1, filter: { type: "highpass", freq: [2600, 2600] } },
+      { kind: "osc", wave: "sine", freq: [130, 52], gain: 0.42, durMs: 200, attackMs: 5 },
+      { kind: "osc", wave: "triangle", freq: [270, 120], gain: 0.15, durMs: 95, attackMs: 3, filter: { type: "lowpass", freq: [900, 500] } },
+      { kind: "noise", gain: 0.22, durMs: 60, attackMs: 3, filter: { type: "bandpass", freq: [700, 350], q: 0.9 } },
     ],
   },
   // "plop" agudo
@@ -135,14 +137,6 @@ export const SFX: Readonly<Record<SfxName, SfxDef>> = {
     layers: [
       { kind: "noise", gain: 0.5, durMs: 150, attackMs: 6, filter: { type: "bandpass", freq: [500, 1600], q: 1.1 } },
       { kind: "osc", wave: "sine", freq: [430, 210], gain: 0.24, durMs: 130 },
-    ],
-  },
-  // borbulhar crescente
-  spawn: {
-    minGapMs: 60,
-    layers: [
-      { kind: "noise", gain: 0.5, durMs: 500, attackMs: 400, filter: { type: "bandpass", freq: [300, 1500], q: 1.3 } },
-      { kind: "osc", wave: "sine", freq: [200, 520], gain: 0.09, durMs: 500, attackMs: 400 },
     ],
   },
   bossAppear: {

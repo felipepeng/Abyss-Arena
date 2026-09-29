@@ -1,5 +1,5 @@
 import { CORAL_PALETTE, CORAL_PROCEDURAL, CORAL_TITLE, CORAL_WAVES } from "../../config/maps/coral";
-import type { MapDef } from "../mapdef";
+import type { MapDef, TilePt } from "../mapdef";
 
 // Jardim de Corais Luminosos — Água-viva (GDD §7.2). 72 × 45 blocos = 1440 × 900 px.
 //
@@ -59,6 +59,16 @@ const LAYOUT = [
   "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", // 44
 ];
 
+/** Posições das anêmonas, nas faces das colunas de coral (GDD §7.2). */
+export const CORAL_ANEMONE_SPOTS: readonly TilePt[] = [
+  { x: 10, y: 20 },
+  { x: 16, y: 30 },
+  { x: 26, y: 33 },
+  { x: 45, y: 33 },
+  { x: 55, y: 30 },
+  { x: 61, y: 20 },
+];
+
 export const CORAL: MapDef = {
   id: "coral",
   layout: LAYOUT,
@@ -71,15 +81,8 @@ export const CORAL: MapDef = {
       { x: 3, y: 28, w: 4, h: 6 }, // esquerda
       { x: 65, y: 28, w: 4, h: 6 }, // direita
     ],
-    fixedEnemies: [],
-    eelDens: [
-      { x: 10, y: 20 },
-      { x: 16, y: 30 },
-      { x: 26, y: 33 },
-      { x: 45, y: 33 },
-      { x: 55, y: 30 },
-      { x: 61, y: 20 },
-    ],
+    // anêmonas presas às faces das colunas: onde a varredura tem o coral atrás e o corredor à frente
+    fixedEnemies: CORAL_ANEMONE_SPOTS.map((at) => ({ kind: "anemone" as const, at })),
   },
   procedural: CORAL_PROCEDURAL,
   palette: CORAL_PALETTE,

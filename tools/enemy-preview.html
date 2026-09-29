@@ -14,13 +14,13 @@
 import { drawEnemy } from "/src/render/creatures/enemies.ts";
 import { ENEMY_DEFS } from "/src/sim/enemies/registry.ts";
 
-const KINDS = ["hermit", "urchin", "jellyling", "eel", "watcher", "lamprey"];
+const KINDS = ["hermit", "urchin", "jellyling", "anemone", "watcher", "lamprey"];
 // [estado, progresso do aviso] de cada coluna, por espécie
 const STATES = {
   hermit: [["chase", 0], ["telegraph", 0.7], ["strike", 0.5]],
   urchin: [["rest", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
   jellyling: [["hover", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
-  eel: [["hidden", 0], ["telegraph", 0.7], ["strike", 0.5]],
+  anemone: [["rest", 0], ["telegraph", 0.7], ["sweep", 0.5]],
   watcher: [["keep", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
   lamprey: [["chase", 0], ["telegraph", 0.7], ["bite", 0.5]],
 };
@@ -42,7 +42,8 @@ KINDS.forEach((kind, row) => {
       kind, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, radius: s.radius, collR: s.collRadius,
       hp: s.hp, maxHp: s.hp, state, stateMs: 1000, t: 1000 * (1 - k), ang: 0, prevAng: 0, flashMs: 0,
       dirX: 1, dirY: 0, noDrop: false, fromWave: false, dead: false,
-      data: { spin: 0.2, denX: -60, denY: 20 },
+      // a varredura de 270° para a direita (dir = 1), começando em −135°; no meio dela na 3ª coluna
+      data: { spin: 0.2, dir: 1, arm0: -2.36, armAng: state === "sweep" ? -0.3 : -2.36, armLen: state === "rest" ? 0 : 110 },
     };
     g.save();
     g.beginPath();

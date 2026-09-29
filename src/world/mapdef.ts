@@ -73,12 +73,10 @@ export interface MapDef {
     /** Onde as ondas nascem (GDD §3.1). Precisam ser água. */
     spawnZones: readonly TileRect[];
     /**
-     * Posições fixas dos inimigos estáticos das ondas (Ouriços). Não nascem com o mapa: a onda
+     * Posições fixas dos inimigos estáticos das ondas (Ouriços, Anêmonas). Não nascem com o mapa: a onda
      * que os lista ocupa uma dessas posições, livre e longe do jogador.
      */
     fixedEnemies: readonly { kind: EnemyKind; at: TilePt }[];
-    /** Tocas de enguia: onde as enguias das ondas nascem e para onde voltam. */
-    eelDens: readonly TilePt[];
     /**
      * Pilares dissolvíveis (Fosso): centro e raios em blocos. A forma é desenhada (aprendível);
      * a borda ganha uma variação procedural pequena. Precisam estar em células `~`.

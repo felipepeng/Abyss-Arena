@@ -114,7 +114,7 @@ Substituem o spawner por tempo do protótipo (CONTEXTO §5.3).
 | Mapa | Onda 1 | Onda 2 | Onda 3 |
 |---|---|---|---|
 | Leito das Fendas | 4 peixes | 3 peixes, 2 circuladores, 2 ermitões | 3 peixes, 2 circuladores, 3 ermitões, 2 ouriços |
-| Jardim de Corais | 3 peixes, 2 medusinhas | 2 peixes, 2 circuladores, 2 medusinhas, 2 enguias | 3 peixes, 3 circuladores, 3 medusinhas, 3 enguias |
+| Jardim de Corais | 3 peixes, 2 medusinhas | 2 peixes, 2 circuladores, 2 medusinhas, 2 anêmonas | 3 peixes, 3 circuladores, 3 medusinhas, 3 anêmonas |
 | Fosso do Abismo | 4 peixes, 2 vigias | 3 circuladores, 2 vigias, 4 lampreias | 3 peixes, 3 circuladores, 3 vigias, 8 lampreias |
 
 ---
@@ -222,7 +222,7 @@ Inimigos comuns podem soltar uma **bolha de cura** ao morrer.
 | Ermitão | 45% |
 | Ouriço | 25% |
 | Medusinha | 25% |
-| Enguia | 35% |
+| Anêmona | 30% |
 | Vigia | 35% |
 | Lampreia | 10% |
 
@@ -298,24 +298,23 @@ Uma cria da Água-viva. Ensina a **pressão de longe** e o uso do coral como cob
 | Recarga | 2200–3000 ms |
 | Contato | 4 |
 
-#### Enguia — Jardim de Corais · **emboscada**
-Mora em **tocas** marcadas no mapa. Ensina que **o terreno também ataca**.
+#### Anêmona-chicote — Jardim de Corais · **varredura rotativa, estática**
+Presa às faces das colunas de coral, em posições fixas do mapa. Ensina a **ler uma varredura
+rotativa**, que é o raio da Água-viva em miniatura. (Substituiu a Enguia, uma emboscada que exigia
+provocar e esperar.)
 
 | Atributo | Valor |
 |---|---|
-| Vida / raio | 40 / 9 px (corpo longo, hitbox só na cabeça) |
-| Na toca | só os olhos aparecem; **não pode ser atingida** |
-| Gatilho | jogador a menos de 160 px da toca |
-| Ataque | aviso de 450 ms (os olhos acendem e aparece uma linha de trajetória) → bote de 300 ms a 520 px/s → volta à toca em ~600 ms |
-| Janela | vulnerável durante o bote e a volta |
-| Dano (ataque / contato) | 13 / 7 |
+| Vida / raio | 40 / 13 px |
+| Ciclo | descansa 1800 ms → aviso de 600 ms (o braço se ergue e brilha, com o arco da varredura marcado) → varredura de 270° |
+| Varredura | braço de 110 px a 2 rad/s (2356 ms). Regra 3: 2 · 110 = 220 px/s, abaixo dos 250 |
+| Cobertura | a rocha corta o braço, como o raio da Água-viva: o coral dá cobertura |
+| Dano (braço / contato) | 12 / 6 |
 
-Para a onda terminar, ela precisa morrer: o jogador tem que provocá-la e punir a volta.
-
-Implementação (M5): o bote alcança 520 px/s · 0,3 s = 156 px, do tamanho do gatilho (160). O aviso
-mira o jogador até o último passo e depois trava. Escondida e no aviso não fere nem é atingida;
-na volta, o contato dói a metade (`ceil(13/2)` = 7, e não 6 como este documento dizia: vale a
-regra do §4.4).
+O arco acompanha o jogador até o último passo do aviso e o tem no meio: o braço chega a ele depois
+de 135° (~1,2 s), tempo de sair do alcance, de acompanhar o braço ou de atravessá-lo no dash. Só a
+cunha de 90° do lado oposto não é varrida. Só o corpo é atingível (o braço não). As anêmonas de uma
+onda não varrem juntas: cada uma nasce com o próprio relógio.
 
 #### Vigia — Fosso do Abismo · **atirador**
 Um olho menor, com pedúnculo. Ensina os **padrões de leque** do Olho.
@@ -360,8 +359,8 @@ Os números abaixo não estavam no GDD e saíram de `src/config/enemies/`; todos
   até 520 px). Sem visão, deslizam em volta do jogador até achar um ângulo, o que também os tira
   de trás de um pilar. A Medusinha sobe e desce; a Vigia recua com 1,4× de força se o jogador
   chegar mais perto que a faixa.
-- **Enguia:** nasce numa das tocas do mapa (livre e a 220 px ou mais do jogador). Depois de voltar,
-  espera 1400 ms antes de reagir de novo; ao nascer, espera 600 ms.
+- **Anêmona:** ocupa uma das 6 posições fixas do mapa (livre e a 220 px ou mais do jogador). A caixa
+  de colisão dela é menor que o desenho (9,1 px), para caber no bloco encostado na coluna.
 - **Lampreia:** cada uma persegue um ponto deslocado até 46 px do jogador, que se fecha sobre ele
   ao chegar perto; sem isso o enxame vira uma bola só (os inimigos não colidem entre si).
 - **Bloqueio do Ermitão:** a fagulha e as 4 bolhas saem na borda do escudo, do lado do jogador.
@@ -376,7 +375,7 @@ direção da mira, suavização 0,12). As ondas e o chefe acontecem **no mesmo m
 jogador aprende o terreno antes da luta.
 
 **Construção híbrida:** a estrutura é **desenhada à mão** (paredes principais, formações
-importantes, tocas, zonas de nascimento, posição do chefe). Os **detalhes** são procedurais com
+importantes, posições de inimigos fixos, zonas de nascimento, posição do chefe). Os **detalhes** são procedurais com
 semente: variação do relevo do chão e do teto, pequenas rochas decorativas e posições exatas de
 elementos menores. A semente é sorteada no início da fase e **mantida ao tentar de novo**.
 
@@ -422,7 +421,7 @@ blocos estruturais).
   - 7 a 9 colunas de coral espalhadas. São a **sombra do raio giratório**: a posição delas
     decide onde é seguro. Precisam deixar corredores de pelo menos 80 px.
   - Uma **área aberta** alta no centro, onde a Água-viva flutua sem esbarrar em tudo.
-  - 5 a 6 **tocas de enguia** embutidas nas colunas e no chão.
+  - 6 **posições de anêmona** nas faces das colunas de coral.
   - 4 zonas de nascimento.
 - **Procedural:** ramificações de coral nas colunas (blocos extras de 1–2), relevo do chão e
   pontos de brilho decorativos.
@@ -586,7 +585,7 @@ de arquivos numa versão futura, então o sistema de áudio precisa aceitar as d
 | Evento | Caráter |
 |---|---|
 | Estocada (início) | sopro curto, filtrado |
-| Acerto da lança | golpe grave e seco + estalo, sincronizado com o hit-stop |
+| Acerto da lança | baque grave e macio, sincronizado com o hit-stop (sem estalo agudo: acontece várias vezes por segundo) |
 | Estocada carregada pronta | tom ascendente que para no máximo |
 | Estourar projétil | "plop" agudo |
 | Bloqueio do Ermitão | "tink" metálico |
@@ -596,7 +595,6 @@ de arquivos numa versão futura, então o sistema de áudio precisa aceitar as d
 | Aviso de ataque de chefe | um som por tipo de aviso, grave e reconhecível |
 | Morte de inimigo | bolhas + tom curto |
 | Morte do chefe | explosão grave longa |
-| Nascimento de inimigo | borbulhar crescente |
 | Menu | clique suave ao navegar e ao confirmar |
 
 Todo som tem pequena variação aleatória de altura (±5%) para não cansar.
@@ -660,7 +658,7 @@ depuração ligada.
 Nenhuma bloqueia a v1. Decididas no M8 (2026-09-29):
 
 1. **Cura:** 12 HP por bolha e as chances da tabela do §5 ficam. Ao longo das 3 ondas de um mapa
-   as bolhas podem render de 71 a 82 HP (Leito 71, Coral 79, Fosso 82) se o jogador pegar todas;
+   as bolhas podem render de 71 a 82 HP (Leito 71, Coral 76, Fosso 82) se o jogador pegar todas;
    o jogador-robô, que joga pior que uma pessoa, chegou ao chefe com ~50 de vida. Sem jogar, mexer
    nisso seria chute.
 2. **Mapas e inimigos exclusivos:** aprovados como estão (§6.2, §7.1, §7.2).

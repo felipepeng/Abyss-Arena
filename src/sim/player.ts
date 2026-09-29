@@ -274,10 +274,8 @@ function spearHitCheck(w: World): void {
     const rr = e.radius + SPEAR.tipRadius;
     const hit = len(e.x - tip.x, e.y - tip.y) <= rr || len(e.x - midX, e.y - midY) <= rr;
     if (!hit) continue;
-    // a blindagem decide: a enguia escondida deixa a lança passar (e pode ser acertada se sair
-    // no meio do golpe); o ermitão bloqueia de frente
+    // a blindagem decide: o ermitão bloqueia de frente
     const result = ENEMY_DEFS[e.kind].onHit?.(e, w) ?? "damage";
-    if (result === "ignore") continue;
     sp.hitIds.add(e.id);
     if (result === "block") {
       // sem dano e SEM hit-stop (regra 6): só o recuo do jogador e a fagulha

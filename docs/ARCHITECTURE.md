@@ -46,7 +46,7 @@ src/
     spawn.ts         nascimento provisório por tempo e anel de depuração (até o M3)
     player.ts  spear.ts  camera.ts  pickups.ts  waves.ts
     enemies/   fish.ts circler.ts dummy.ts (saco de pancada, depuração)
-               hermit.ts urchin.ts jellyling.ts eel.ts watcher.ts lamprey.ts
+               hermit.ts urchin.ts jellyling.ts anemone.ts watcher.ts lamprey.ts
     bosses/    crab.ts jelly.ts eye.ts
     maps/      rift.ts coral.ts abyss.ts  (paleta, relevo procedural, ondas, cartão de título)
     kinds.ts         nomes dos tipos de inimigo e de chefe (world/ e sim/ precisam deles)
@@ -247,19 +247,18 @@ interface EnemyDef {
   stats: EnemyStats;                         // vida, raio, velocidades, dano, chance de drop
   initial: string;
   states: Record<string, EnemyState>;
-  // a lança acertou: "damage" (padrão), "block" (Ermitão de frente: sem dano nem hit-stop, com
-  // recuo do jogador e o evento spearBlocked) ou "ignore" (Enguia escondida: a lança passa)
-  onHit?(e: Enemy, w: World): "damage" | "block" | "ignore";
+  // a lança acertou: "damage" (padrão) ou "block" (Ermitão de frente: sem dano nem hit-stop, com
+  // recuo do jogador e o evento spearBlocked)
+  onHit?(e: Enemy, w: World): "damage" | "block";
 }
 // EnemyStats.fullContact: encostar sempre dá o dano cheio (Ouriço, Medusinha, Vigia).
 // EnemyStats.placement: "zone" (padrão, zona de nascimento) ou "spot" (posição fixa do mapa:
-//   os ouriços do Leito e as tocas de enguia do Coral).
+//   os ouriços do Leito e as anêmonas do Coral).
 interface EnemyState {
   enter?(e: Enemy, w: World): void;
   update(e: Enemy, w: World, dt: number): string | void;   // retorna o próximo estado
   telegraph?: boolean;                       // marca estado de aviso (debug + regra de ouro)
   harmful?: boolean;                         // true = dano cheio no contato; false = metade
-  noContact?: boolean;                       // sem dano de contato (a Enguia escondida)
 }
 ```
 
@@ -378,7 +377,6 @@ interface MapDef {
     playerStart: Pt; bossSpawn: Pt;
     spawnZones: Rect[];          // zonas de nascimento das ondas
     fixedEnemies: { kind: EnemyKind; at: Pt }[];   // posições fixas dos estáticos das ondas (Ouriços)
-    eelDens: Pt[];               // tocas de enguia
     pillars?: Rect[];            // Fosso: pilares nomeados para dissolver por fase
   };
   procedural: ProceduralParams;  // relevo por senos, blobs, ramificações... cada um opcional

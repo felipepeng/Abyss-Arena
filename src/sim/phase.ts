@@ -215,10 +215,7 @@ function pickSpot(w: World, f: PhaseFlow, kind: EnemyKind, r: number): { x: numb
 function spotTaken(w: World, f: PhaseFlow, kind: EnemyKind, x: number, y: number): boolean {
   for (let i = 0; i < w.enemies.count; i++) {
     const e = w.enemies.get(i);
-    // a enguia volta à toca: a posição fixa dela é a toca, não onde ela está agora
-    const ex = e.kind === "eel" ? e.data.denX ?? e.x : e.x;
-    const ey = e.kind === "eel" ? e.data.denY ?? e.y : e.y;
-    if (!e.dead && e.kind === kind && len(ex - x, ey - y) < WAVES.spotSize) return true;
+    if (!e.dead && e.kind === kind && len(e.x - x, e.y - y) < WAVES.spotSize) return true;
   }
   for (const s of f.pending) if (s.kind === kind && len(s.x - x, s.y - y) < WAVES.spotSize) return true;
   return false;

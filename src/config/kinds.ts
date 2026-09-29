@@ -3,6 +3,6 @@
 
 export type EnemyKind =
   | "fish" | "circler" | "dummy" | "dummyBig"
-  | "hermit" | "urchin" | "jellyling" | "eel" | "watcher" | "lamprey";
+  | "hermit" | "urchin" | "jellyling" | "anemone" | "watcher" | "lamprey";
 
 export type BossKind = "crab" | "jelly" | "eye";

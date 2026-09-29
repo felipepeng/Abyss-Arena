@@ -36,6 +36,22 @@ describe("definições dos sons", () => {
     }
   });
 
+  it("o acerto da lança é grave e macio: sem onda áspera nem ruído agudo, e com o pico contido", () => {
+    // acontece várias vezes por segundo; um estalo agudo e alto cansa (e machuca) o ouvido
+    const layers = SFX.hit.layers;
+    for (const l of layers) {
+      expect(l.wave === "square" || l.wave === "sawtooth", "onda áspera").toBe(false);
+      expect(l.filter?.type === "highpass", "filtro passa-altas").toBe(false);
+      // nenhuma camada sobe muito acima de 1 kHz
+      for (const f of l.freq ?? []) expect(f).toBeLessThanOrEqual(1000);
+    }
+    expect(layers.reduce((s, l) => s + l.gain, 0)).toBeLessThanOrEqual(0.85);
+    // a camada de baque grave existe: é ela que dá o impacto
+    expect(layers.some((l) => l.kind === "osc" && (l.freq?.[1] ?? 999) <= 60)).toBe(true);
+    // e um acerto duplo no mesmo instante não soma dois baques
+    expect(SFX.hit.minGapMs).toBeGreaterThan(0);
+  });
+
   it("há exatamente 11 avisos de chefe, todos com definição", () => {
     expect(WARN_KEYS).toHaveLength(11);
     for (const k of WARN_KEYS) expect(SFX[k]).toBeDefined();
@@ -56,7 +72,6 @@ describe("evento → som", () => {
     ["coletar cura", { t: "pickup", ...at, amount: 12 }, "pickup"],
     ["morte de inimigo", { t: "enemyDied", ...at, radius: 10, kind: "fish" }, "enemyDie"],
     ["morte do chefe", { t: "bossDied", ...at, radius: 40, boss: "crab" }, "bossDie"],
-    ["nascimento de inimigo", { t: "spawnWarn", ...at }, "spawn"],
     ["morte do jogador", { t: "playerDied", ...at }, "playerDie"],
     ["chefe entra", { t: "bossAppeared", ...at, boss: "eye" }, "bossAppear"],
     ["chefe muda de fase", { t: "bossPhase", ...at, boss: "eye", phase: 1 }, "bossPhase"],
@@ -78,6 +93,10 @@ describe("evento → som", () => {
       }
     }
     expect(seen.size).toBe(WARN_KEYS.length);
+  });
+
+  it("o nascimento de inimigos comuns não faz som (o redemoinho de bolhas é só visual)", () => {
+    expect(soundFor({ t: "spawnWarn", ...at })).toBeNull();
   });
 
   it("os avisos dos inimigos comuns não têm som (são visuais)", () => {

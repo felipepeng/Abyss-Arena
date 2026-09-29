@@ -1,4 +1,4 @@
-import { EEL } from "../../config/enemies/eel";
+import { ANEMONE } from "../../config/enemies/anemone";
 import { HERMIT } from "../../config/enemies/hermit";
 import { URCHIN } from "../../config/enemies/urchin";
 import { WATCHER } from "../../config/enemies/watcher";
@@ -197,67 +197,89 @@ export const drawJellyling: Drawer = (g, e, flashing) => {
 };
 
 /**
- * Enguia. A origem é a cabeça; a toca fica em `data.denX/denY`. Escondida: só os olhos
- * aparecem. No aviso, os olhos acendem e uma linha mostra a trajetória do bote.
+ * Anêmona-chicote, presa a um coral. Em repouso: uma coroa de tentáculos curtos. No aviso: o arco
+ * que a varredura vai cobrir e o braço aceso onde ela começa. Na varredura: o braço girando, com
+ * o rastro do que já passou. O braço é cortado pela rocha (`armLen`), como o raio da Água-viva.
  */
-export const drawEel: Drawer = (g, e, flashing) => {
+export const drawAnemone: Drawer = (g, e, flashing) => {
   const r = e.radius;
-  const hidden = e.state === "hidden" || e.state === "telegraph";
-  const denX = (e.data.denX ?? e.x) - e.x;
-  const denY = (e.data.denY ?? e.y) - e.y;
   const tel = e.state === "telegraph";
+  const sweeping = e.state === "sweep";
   const k = progress(e);
+  const dir = e.data.dir ?? 1;
+  const arm0 = e.data.arm0 ?? 0;
+  const armAng = e.data.armAng ?? 0;
+  const armLen = e.data.armLen ?? 0;
+  const ccw = dir < 0;
 
-  if (tel) {
-    // trajetória do bote: do tamanho do alcance, na direção travada
-    const reach = EEL.strikeSpeed * (EEL.strikeMs / 1000);
-    g.strokeStyle = "rgba(200,255,90,0.55)";
-    g.lineWidth = 2 + 2 * k;
-    g.setLineDash([6, 5]);
+  const sector = (from: number, to: number, alpha: number): void => {
+    g.globalAlpha = alpha;
+    g.fillStyle = "#ff6fb5";
     g.beginPath();
     g.moveTo(0, 0);
-    g.lineTo(e.dirX * reach, e.dirY * reach);
+    g.arc(0, 0, ANEMONE.armLen, from, to, ccw);
+    g.closePath();
+    g.fill();
+    g.globalAlpha = 1;
+  };
+  const arm = (ang: number, len: number, glow: number): void => {
+    if (len < 2) return;
+    const x = Math.cos(ang) * len;
+    const y = Math.sin(ang) * len;
+    g.lineCap = "round";
+    g.globalAlpha = glow;
+    g.strokeStyle = "#ff8fc8";
+    g.lineWidth = 16;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(x, y);
     g.stroke();
-    g.setLineDash([]);
+    g.globalAlpha = 1;
+    g.strokeStyle = flashing ? "#ffffff" : "#ff5aa8";
+    g.lineWidth = 8;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(x, y);
+    g.stroke();
+    g.fillStyle = flashing ? "#ffffff" : "#ffd6ec";
+    g.beginPath();
+    g.arc(x, y, 6, 0, TAU);
+    g.fill();
+    g.lineCap = "butt";
+  };
+
+  if (tel) {
+    sector(arm0, arm0 + dir * ANEMONE.sweepRad, 0.08 + 0.16 * k);
+    arm(arm0, armLen, 0.25 + 0.4 * Math.abs(Math.sin(k * 14)));
+  } else if (sweeping) {
+    sector(arm0, armAng, 0.14);
+    arm(armAng, armLen, 0.4);
   }
 
-  if (!hidden) {
-    // corpo: um tubo curvo da toca até a cabeça
-    const mx = denX * 0.5 - denY * 0.22;
-    const my = denY * 0.5 + denX * 0.22;
-    g.lineCap = "round";
-    g.strokeStyle = flashing ? "#ffffff" : "#2f5e46";
-    g.lineWidth = r * 1.5;
+  // coroa de tentáculos curtos, que se abrem no aviso
+  g.strokeStyle = flashing ? "#ffffff" : "#e0559b";
+  g.lineWidth = 3.5;
+  g.lineCap = "round";
+  const open = tel || sweeping ? 5 : 0;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * TAU;
     g.beginPath();
-    g.moveTo(denX, denY);
-    g.quadraticCurveTo(mx, my, 0, 0);
+    g.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7);
+    g.quadraticCurveTo(
+      Math.cos(a + 0.35) * (r + 4 + open * 0.6), Math.sin(a + 0.35) * (r + 4 + open * 0.6),
+      Math.cos(a) * (r + 8 + open), Math.sin(a) * (r + 8 + open),
+    );
     g.stroke();
-    g.strokeStyle = flashing ? "#ffffff" : "#5fae82";
-    g.lineWidth = r * 0.5;
-    g.beginPath();
-    g.moveTo(denX, denY);
-    g.quadraticCurveTo(mx, my, 0, 0);
-    g.stroke();
-    g.lineCap = "butt";
-    g.fillStyle = flashing ? "#ffffff" : "#3f7a5a";
-    disc(g, 0, 0, r);
   }
-  // olhos: acompanham o jogador (`dir`); apagados escondida, acesos no aviso e no bote
-  const lit = e.state !== "hidden";
-  const ex = e.dirX * 2;
-  const ey = e.dirY * 2;
-  const px = -e.dirY * 3.2;
-  const py = e.dirX * 3.2;
-  if (lit) {
-    g.globalAlpha = 0.35 + 0.35 * (tel ? Math.abs(Math.sin(k * 14)) : 1);
-    g.fillStyle = "#c8ff5a";
-    disc(g, ex + px, ey + py, 6);
-    disc(g, ex - px, ey - py, 6);
-    g.globalAlpha = 1;
+  g.lineCap = "butt";
+  g.fillStyle = flashing ? "#ffffff" : tel ? "#e8579f" : "#c8437f";
+  disc(g, 0, 0, r);
+  if (!flashing) {
+    g.fillStyle = "#ff9ccd";
+    disc(g, -r * 0.2, -r * 0.25, r * 0.5);
+    g.fillStyle = "#4a1030";
+    disc(g, 0, 0, r * 0.28);
   }
-  g.fillStyle = lit ? "#e8ff9a" : "#7c9a4a";
-  disc(g, ex + px, ey + py, 2.4);
-  disc(g, ex - px, ey - py, 2.4);
 };
 
 /** Vigia: olho com pedúnculo. No aviso a pupila contrai e aparece o setor do leque. */

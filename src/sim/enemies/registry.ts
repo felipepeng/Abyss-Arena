@@ -1,6 +1,6 @@
 import { CIRCLER_DEF } from "./circler";
 import { DUMMY_BIG_DEF, DUMMY_DEF } from "./dummy";
-import { EEL_DEF } from "./eel";
+import { ANEMONE_DEF } from "./anemone";
 import { FISH_DEF } from "./fish";
 import { HERMIT_DEF } from "./hermit";
 import { JELLYLING_DEF } from "./jellyling";
@@ -20,7 +20,7 @@ export const ENEMY_DEFS: Readonly<Record<EnemyKind, EnemyDef>> = {
   hermit: HERMIT_DEF,
   urchin: URCHIN_DEF,
   jellyling: JELLYLING_DEF,
-  eel: EEL_DEF,
+  anemone: ANEMONE_DEF,
   watcher: WATCHER_DEF,
   lamprey: LAMPREY_DEF,
 };

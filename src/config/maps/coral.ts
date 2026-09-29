@@ -25,7 +25,7 @@ export const CORAL_PROCEDURAL = {
   branches: { count: 22, length: [1, 2] as const },
 };
 
-/** Ondas (GDD §3.2, 🟡). As enguias nascem nas tocas marcadas no mapa. */
+/** Ondas (GDD §3.2). As anêmonas ocupam as posições fixas marcadas nos corais (CORAL_ANEMONE_SPOTS). */
 export const CORAL_WAVES = [
   {
     enemies: [
@@ -38,7 +38,7 @@ export const CORAL_WAVES = [
       { kind: "fish", count: 2 },
       { kind: "circler", count: 2 },
       { kind: "jellyling", count: 2 },
-      { kind: "eel", count: 2 },
+      { kind: "anemone", count: 2 },
     ],
   },
   {
@@ -46,7 +46,7 @@ export const CORAL_WAVES = [
       { kind: "fish", count: 3 },
       { kind: "circler", count: 3 },
       { kind: "jellyling", count: 3 },
-      { kind: "eel", count: 3 },
+      { kind: "anemone", count: 3 },
     ],
   },
 ] as const;

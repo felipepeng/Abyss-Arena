@@ -50,7 +50,7 @@ export interface EnemyStats {
 }
 
 /** O que a blindagem de uma criatura faz com um acerto da lança. */
-export type HitResult = "damage" | "block" | "ignore";
+export type HitResult = "damage" | "block";
 
 export interface EnemyState {
   /** Chamado ao entrar no estado; normalmente fixa `t` e a velocidade de um ataque. */
@@ -63,8 +63,6 @@ export interface EnemyState {
   readonly telegraph?: boolean;
   /** Estado de ataque: contato com dano cheio e alcance extra; fora dele, metade. */
   readonly harmful?: boolean;
-  /** Sem dano de contato neste estado (a enguia escondida na toca). */
-  readonly noContact?: boolean;
 }
 
 export interface EnemyDef {
@@ -78,8 +76,7 @@ export interface EnemyDef {
   orient?(e: Enemy, dt: number): void;
   /**
    * A lança acertou. `damage`: dano, hit-stop e recuo (o padrão); `block`: sem dano nem
-   * hit-stop, com recuo do jogador (a blindagem do Ermitão); `ignore`: nada acontece e a
-   * lança passa (a enguia escondida).
+   * hit-stop, com recuo do jogador (a blindagem do Ermitão).
    */
   onHit?(e: Enemy, w: World): HitResult;
   /** Ao zerar a vida. Devolve true para continuar vivo (o saco de pancada volta cheio). */

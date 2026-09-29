@@ -24,8 +24,6 @@ export interface BuiltMap {
   spawnZones: PxRect[];
   /** Posições dos estáticos das ondas (ouriços), em px. */
   fixedEnemies: { kind: EnemyKind; x: number; y: number }[];
-  /** Tocas de enguia, em px. */
-  eelDens: { x: number; y: number }[];
   /** Índices de bloco de cada pilar dissolvível. */
   pillars: number[][];
 }
@@ -57,13 +55,12 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
     }
   });
 
-  // Posições fixas de criaturas (ouriços, tocas): o procedural não escreve nelas nem ao redor,
+  // Posições fixas de criaturas (ouriços, anêmonas): o procedural não escreve nelas nem ao redor,
   // para uma criatura nunca nascer dentro da rocha.
   const guard = (pt: { x: number; y: number }): void => {
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) free[(pt.y + dy) * cols + pt.x + dx] = 0;
   };
   def.markers.fixedEnemies.forEach((f) => guard(f.at));
-  def.markers.eelDens.forEach(guard);
 
   const rng = new Rng(seed);
   const canWrite = (cx: number, cy: number): boolean => grid.inBounds(cx, cy) && free[cy * cols + cx] === 1;
@@ -176,7 +173,6 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
     bossSpawn: center(def.markers.bossSpawn),
     spawnZones: def.markers.spawnZones.map(toPx),
     fixedEnemies: def.markers.fixedEnemies.map((f) => ({ kind: f.kind, ...center(f.at) })),
-    eelDens: def.markers.eelDens.map(center),
     pillars,
   };
 }

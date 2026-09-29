@@ -134,7 +134,7 @@ protótipo e a investida bate nas formações.
 
 ## 🟨 M4 — Água-viva e Olho
 
-- [x] **Jardim de Corais** (GDD §7.2): layout, colunas de coral, tocas marcadas, paleta.
+- [x] **Jardim de Corais** (GDD §7.2): layout, colunas de coral, posições das anêmonas, paleta.
 - [x] **Água-viva** portada: anel, raio (com os subestágios `extend`/`sweep` e as 7 regras),
       sucção, fase 2.
 - [x] Medir a cobertura do raio (direções cortadas antes de 300 px) e ajustar o layout para a
@@ -176,7 +176,7 @@ ondas); o harness do "jogador atrás do pilar" no Olho dá números da mesma ord
 - [x] Ermitão (blindagem frontal com bloqueio e sem hit-stop).
 - [x] Ouriço (estático, rajada de espinhos).
 - [x] Medusinha (à distância, com linha de visão).
-- [x] Enguia (toca, invulnerável escondida, bote telegrafado).
+- [x] ~~Enguia~~ → Anêmona-chicote (varredura de 270° telegrafada; a Enguia foi trocada depois do M8).
 - [x] Vigia (leque de 3 tiros, com linha de visão).
 - [x] Lampreia (enxame).
 - [x] Composição final das ondas dos 3 mapas (GDD §3.2).
@@ -187,16 +187,17 @@ aviso visível no overlay de depuração (estado marcado como `telegraph`) antes
 
 **Estado (2026-09-29):**
 - Os seis inimigos e as ondas do GDD §3.2 estão nos três mapas. `tests/sim/exclusive.test.ts`
-  cobre o bloqueio do Ermitão (sem dano nem hit-stop, e o dano pelas costas), a enguia
-  (invulnerável escondida, o bote e a volta), os espinhos (8, sumindo a 110 px), a linha de visão
+  cobre o bloqueio do Ermitão (sem dano nem hit-stop, e o dano pelas costas), a anêmona
+  (o ciclo de aviso e varredura, o braço cortado pela rocha, uma pancada por passada), os espinhos (8, sumindo a 110 px), a linha de visão
   (Medusinha e Vigia não atiram atrás de parede), o leque de 3 tiros, o dano de contato de cada
   um, a Lampreia (sobrevive a uma estocada sem carga) e a composição das ondas.
 - A regra 2 é testada por criatura: cada ataque sai depois do aviso inteiro (450, 500, 600, 450,
   500 e 300 ms). Os seis têm estado `telegraph` no overlay de depuração.
-- Ouriços e enguias ocupam posições fixas (`MapDef.markers.fixedEnemies` e `eelDens`), sem rocha
+- Ouriços e anêmonas ocupam posições fixas (`MapDef.markers.fixedEnemies`), sem rocha
   em cima em qualquer semente (o construtor protege o entorno delas do procedural).
 - O GDD ganhou a seção "Como o M5 preencheu o que este documento deixava aberto" e a correção do
-  contato da Enguia (13 / 7, pela regra do §4.4).
+  contato da Enguia (13 / 7, pela regra do §4.4); depois a Enguia saiu do jogo e o contato da
+  Anêmona é 12 / 6.
 - Falta jogar as três fases à mão, e o balanceamento das ondas (a onda 3 do Fosso tem 17
   inimigos) fica para o M8.
 
@@ -245,7 +246,7 @@ ondas para o chefe e para a última fase dele sem corte; o volume funciona; o hi
 engasga o áudio.
 
 **Estado (2026-09-29):**
-- Todos os 13 eventos da tabela do GDD §10.1 têm som, mais a morte do jogador, a entrada do
+- Todos os 12 eventos da tabela do GDD §10.1 têm som, mais a morte do jogador, a entrada do
   chefe, a troca de fase e a batida da investida. Os 11 ataques dos 3 chefes têm cada um o seu
   aviso, e um teste percorre `BOSS_DEFS` para que um ataque novo sem som não passe.
 - A simulação ganhou só um evento, `chargeStart` (para o tom da carga). O `switch` de
@@ -284,7 +285,7 @@ v1; build publicada.
   fase). Com os 100 ms de invulnerabilidade o dano por minuto muda no máximo ±8% em relação a sem
   ela, inclusive com um robô que usa o dash como escudo no instante perfeito (−7%). Sem mudança no
   Olho. Detalhes no GDD §8.3.
-- **Cura:** as ondas de um mapa rendem de 71 a 82 HP possíveis (Leito 71, Coral 79, Fosso 82).
+- **Cura:** as ondas de um mapa rendem de 71 a 82 HP possíveis (Leito 71, Coral 76, Fosso 82).
 - **Desempenho:** o passo da simulação custa 40 µs com 895 projéteis (0,24% do quadro); numa luta
   real o pico foi 159 projéteis. No Chrome e no Edge, com ~640 projéteis vivos, 60 fps estáveis
   e ~0,9 ms por quadro (em renderização por software, o pior caso).

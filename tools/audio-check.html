@@ -38,17 +38,21 @@ function chain(ctx) {
 
 function stats(buf) {
   const d = buf.getChannelData(0);
-  let peak = 0, sum = 0, bad = 0, quiet = 0, lastLoud = 0;
+  let peak = 0, sum = 0, bad = 0, quiet = 0, lastLoud = 0, dsum = 0;
   for (let i = 0; i < d.length; i++) {
     const v = d[i];
     if (!Number.isFinite(v)) { bad++; continue; }
     const a = Math.abs(v);
     if (a > peak) peak = a;
     sum += v * v;
+    if (i > 0) { const dv = v - d[i - 1]; dsum += dv * dv; }
     if (a < 0.0005) quiet++; else lastLoud = i;
   }
   return {
     peak: +peak.toFixed(3), rms: +Math.sqrt(sum / d.length).toFixed(4), bad,
+    // brilho: energia da derivada sobre a do sinal. Quanto mais agudo e áspero, maior (um seno
+    // de 1 kHz dá ~0,14; ruído branco dá ~1,4). É o que machuca o ouvido, mais que o volume.
+    bright: sum > 0 ? +Math.sqrt(dsum / sum).toFixed(3) : 0,
     silentPct: +((100 * quiet) / d.length).toFixed(1), audibleMs: Math.round((1000 * lastLoud) / RATE),
   };
 }

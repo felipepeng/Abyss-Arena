@@ -77,7 +77,6 @@ export const RIFT: MapDef = {
       { x: 30, y: 27, w: 11, h: 3 }, // baixo
     ],
     fixedEnemies: RIFT_URCHIN_SPOTS.map((at) => ({ kind: "urchin" as const, at })),
-    eelDens: [],
   },
   procedural: RIFT_PROCEDURAL,
   palette: RIFT_PALETTE,

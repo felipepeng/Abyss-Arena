@@ -83,7 +83,6 @@ export const ABYSS: MapDef = {
       { x: 4, y: 25, w: 3, h: 5 },
     ],
     fixedEnemies: [],
-    eelDens: [],
     pillars: [
       { x: 19, y: 37, rx: 2.1, ry: 2.3 },
       { x: 64, y: 22, rx: 1.4, ry: 2.5 },

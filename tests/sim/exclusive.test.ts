@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EEL } from "../../src/config/enemies/eel";
+import { ANEMONE } from "../../src/config/enemies/anemone";
 import { FISH } from "../../src/config/enemies/fish";
 import { HERMIT } from "../../src/config/enemies/hermit";
 import { JELLYLING } from "../../src/config/enemies/jellyling";
@@ -18,7 +18,7 @@ import { createMapWorld, stepWorld, type World } from "../../src/sim/world";
 import { buildMap } from "../../src/world/builder";
 import { Cell } from "../../src/world/grid";
 import { overlapsRock } from "../../src/sim/collision";
-import { CORAL } from "../../src/world/maps/coral";
+import { CORAL, CORAL_ANEMONE_SPOTS } from "../../src/world/maps/coral";
 import { RIFT, RIFT_URCHIN_SPOTS } from "../../src/world/maps/rift";
 import { ABYSS } from "../../src/world/maps/abyss";
 import { aimRight, intent, openGrid, openWorld, STEP, steps } from "./helpers";
@@ -124,64 +124,77 @@ describe("Ermitão: blindagem frontal", () => {
   });
 });
 
-describe("Enguia: toca, bote e volta", () => {
-  it("escondida, deixa a lança passar e não fere no contato", () => {
+describe("Anêmona-chicote: varredura de 270°", () => {
+  /** Roda até `pred` valer (ou 10 s) e devolve os ms decorridos. */
+  function until(w: World, pred: () => boolean): number {
+    const t0 = w.timeMs;
+    for (let i = 0; i < 600 && !pred(); i++) stepWorld(w, aimRight(w), STEP);
+    return w.timeMs - t0;
+  }
+
+  it("descansa, avisa 600 ms e varre por 270° / 2 rad/s, e volta a descansar", () => {
     const w = openWorld();
-    const e = spawn(w, "eel", 640, 600);
-    let hitStop = 0;
-    const events: SimEvent[] = [];
-    // estocada nos primeiros 500 ms, ainda na carência do nascimento
-    stepWorld(w, aimRight(w, STAB), STEP);
-    for (let i = 0; i < 20; i++) {
-      events.push(...w.events.list);
-      hitStop = Math.max(hitStop, w.hitStopMs);
-      stepWorld(w, aimRight(w), STEP);
-    }
-    expect(events.some((ev) => ev.t === "spearHit" || ev.t === "spearBlocked")).toBe(false);
-    expect(e.hp).toBe(EEL.hp);
-    expect(hitStop).toBe(0);
+    w.godMode = true;
+    const e = spawn(w, "anemone", 700, 600);
+    e.t = 0;
+    const warn = until(w, () => e.state === "telegraph");
+    expect(warn).toBeLessThan(100);
+    const telegraph = until(w, () => e.state === "sweep");
+    expect(telegraph).toBeGreaterThanOrEqual(ANEMONE.telegraphMs - STEP);
+    expect(telegraph).toBeLessThanOrEqual(ANEMONE.telegraphMs + 2 * STEP);
+    const sweep = until(w, () => e.state === "rest");
+    const expected = (ANEMONE.sweepRad / ANEMONE.omega) * 1000;
+    expect(sweep).toBeGreaterThanOrEqual(expected - 2 * STEP);
+    expect(sweep).toBeLessThanOrEqual(expected + 2 * STEP);
+  });
+
+  it("o braço fere quem está no alcance dele, uma vez por passada, e só durante a varredura", () => {
+    const w = openWorld({ start: { x: 780, y: 600 } });
+    const e = spawn(w, "anemone", 700, 600); // o jogador a 80 px, dentro do alcance de 110
+    e.t = 0;
+    until(w, () => e.state === "telegraph");
+    until(w, () => e.state === "sweep");
+    // o aviso inteiro passou sem dano
+    expect(w.player.hp).toBe(PLAYER.hp);
+    until(w, () => e.state === "rest");
+    // a varredura passa por onde o jogador estava: uma pancada só (a invulnerabilidade do funil)
+    expect(w.player.hp).toBe(PLAYER.hp - ANEMONE.contactDamage);
+  });
+
+  it("fora do alcance do braço (mais de ~125 px), não fere", () => {
+    const w = openWorld({ start: { x: 850, y: 600 } });
+    const e = spawn(w, "anemone", 700, 600); // a 150 px
+    e.t = 0;
+    steps(w, 60 * 8, (w) => aimRight(w));
     expect(w.player.hp).toBe(PLAYER.hp);
   });
 
-  it("no bote, a cabeça fica exposta e leva dano", () => {
+  it("a rocha corta o braço: o coral dá cobertura, como contra o raio da Água-viva", () => {
+    const covered = (wall: boolean): number => {
+      const grid = openGrid(100, 60);
+      if (wall) grid.fill(37, 2, 37, 57, Cell.Rock); // x = 740..760, entre os dois
+      const w = openWorld({ grid, start: { x: 790, y: 600 } });
+      const e = spawn(w, "anemone", 700, 600);
+      e.t = 0;
+      steps(w, 60 * 5, (w) => aimRight(w));
+      return PLAYER.hp - w.player.hp;
+    };
+    expect(covered(false)).toBe(ANEMONE.contactDamage);
+    expect(covered(true)).toBe(0);
+  });
+
+  it("regra 3: a ponta do braço anda a menos que o nado (ω · comprimento < 250 px/s)", () => {
+    expect(ANEMONE.omega * ANEMONE.armLen).toBeLessThan(250);
+  });
+
+  it("o corpo leva a lança normalmente, com dano e hit-stop", () => {
     const w = openWorld();
     w.godMode = true;
-    const e = spawn(w, "eel", 640, 600);
-    setState(e, w, "strike");
-    e.vx = e.vy = 0;
+    const e = spawn(w, "anemone", 640, 600);
+    e.t = 1e9; // descansando
     const events = stab(w);
     expect(events.some((ev) => ev.t === "spearHit")).toBe(true);
-    expect(e.hp).toBeLessThan(EEL.hp);
-  });
-
-  it("o gatilho é o jogador a menos de 160 px da toca; o bote sai depois do aviso de 450 ms e volta", () => {
-    const w = openWorld();
-    w.godMode = true;
-    const e = spawn(w, "eel", 680, 600); // a 80 px
-    e.t = 0;
-    let telegraphAt = -1;
-    let strikeAt = -1;
-    let backAt = -1;
-    for (let i = 0; i < 240 && backAt < 0; i++) {
-      stepWorld(w, aimRight(w), STEP);
-      if (telegraphAt < 0 && e.state === "telegraph") telegraphAt = w.timeMs;
-      if (strikeAt < 0 && e.state === "strike") strikeAt = w.timeMs;
-      if (strikeAt > 0 && e.state === "hidden") backAt = w.timeMs;
-    }
-    expect(telegraphAt).toBeGreaterThan(0);
-    expect(strikeAt - telegraphAt).toBeGreaterThanOrEqual(EEL.telegraphMs - STEP);
-    expect(strikeAt - telegraphAt).toBeLessThanOrEqual(EEL.telegraphMs + 2 * STEP);
-    expect(backAt).toBeGreaterThan(strikeAt);
-    // voltou para a toca
-    expect(len(e.x - (e.data.denX ?? 0), e.y - (e.data.denY ?? 0))).toBeLessThan(1);
-  });
-
-  it("longe da toca (mais de 160 px), continua escondida", () => {
-    const w = openWorld();
-    const e = spawn(w, "eel", 900, 600); // a 300 px
-    e.t = 0;
-    steps(w, 180, (w) => aimRight(w));
-    expect(e.state).toBe("hidden");
+    expect(e.hp).toBeLessThan(ANEMONE.hp);
   });
 });
 
@@ -222,8 +235,6 @@ describe("dano de contato", () => {
   function contact(kind: EnemyKind, state?: string): number {
     const w = openWorld();
     const e = spawn(w, kind, 606, 600);
-    // a enguia na volta só fica de fora da toca se a toca estiver longe
-    if (kind === "eel") e.data.denX = 700;
     if (state) setState(e, w, state);
     stepWorld(w, aimRight(w), STEP);
     return PLAYER.hp - w.player.hp;
@@ -241,10 +252,9 @@ describe("dano de contato", () => {
     expect(contact("lamprey", "bite")).toBe(LAMPREY.contactDamage);
   });
 
-  it("Enguia: sem contato escondida, cheio no bote, metade na volta", () => {
-    expect(contact("eel")).toBe(0);
-    expect(contact("eel", "strike")).toBe(EEL.contactDamage);
-    expect(contact("eel", "return")).toBe(Math.ceil(EEL.contactDamage / 2));
+  it("Anêmona: metade em repouso (arredondada para cima), cheio na varredura", () => {
+    expect(contact("anemone")).toBe(Math.ceil(ANEMONE.contactDamage / 2));
+    expect(contact("anemone", "sweep")).toBe(ANEMONE.contactDamage);
   });
 });
 
@@ -364,7 +374,7 @@ describe("regra 2: todo ataque avisa antes", () => {
     ["hermit", HERMIT.telegraphMs, 700],
     ["urchin", URCHIN.telegraphMs, 800],
     ["jellyling", JELLYLING.telegraphMs, 850],
-    ["eel", EEL.telegraphMs, 680],
+    ["anemone", ANEMONE.telegraphMs, 700],
     ["watcher", WATCHER.telegraphMs, 900],
     ["lamprey", LAMPREY.telegraphMs, 700],
   ];
@@ -399,8 +409,8 @@ describe("ondas e posições dos mapas", () => {
       ["Leito", RIFT.waves, [{ fish: 4 }, { fish: 3, circler: 2, hermit: 2 }, { fish: 3, circler: 2, hermit: 3, urchin: 2 }]],
       ["Coral", CORAL.waves, [
         { fish: 3, jellyling: 2 },
-        { fish: 2, circler: 2, jellyling: 2, eel: 2 },
-        { fish: 3, circler: 3, jellyling: 3, eel: 3 },
+        { fish: 2, circler: 2, jellyling: 2, anemone: 2 },
+        { fish: 3, circler: 3, jellyling: 3, anemone: 3 },
       ]],
       ["Fosso", ABYSS.waves, [
         { fish: 4, watcher: 2 },
@@ -418,7 +428,7 @@ describe("ondas e posições dos mapas", () => {
     }
   });
 
-  it("as posições fixas e as tocas nascem sem rocha em cima, em qualquer semente", () => {
+  it("as posições fixas nascem sem rocha em cima, em qualquer semente", () => {
     for (const seed of [1, 2, 3, 4, 5, 6]) {
       const leito = buildMap(RIFT, seed);
       expect(leito.fixedEnemies).toHaveLength(RIFT_URCHIN_SPOTS.length);
@@ -426,9 +436,9 @@ describe("ondas e posições dos mapas", () => {
         expect(overlapsRock(leito.grid, s.x, s.y, URCHIN.radius), `ouriço ${s.x},${s.y} semente ${seed}`).toBe(false);
       }
       const coral = buildMap(CORAL, seed);
-      expect(coral.eelDens).toHaveLength(CORAL.markers.eelDens.length);
-      for (const d of coral.eelDens) {
-        expect(overlapsRock(coral.grid, d.x, d.y, EEL.radius), `toca ${d.x},${d.y} semente ${seed}`).toBe(false);
+      expect(coral.fixedEnemies).toHaveLength(CORAL_ANEMONE_SPOTS.length);
+      for (const a of coral.fixedEnemies) {
+        expect(overlapsRock(coral.grid, a.x, a.y, ANEMONE.radius * ANEMONE.collScale), `anêmona ${a.x},${a.y} semente ${seed}`).toBe(false);
       }
     }
   });
@@ -464,15 +474,15 @@ describe("ondas e posições dos mapas", () => {
     expect(len(urchins[0]!.x - urchins[1]!.x, urchins[0]!.y - urchins[1]!.y)).toBeGreaterThan(20);
   });
 
-  it("Coral, onda 3: as 3 enguias ficam em tocas diferentes", () => {
+  it("Coral, onda 3: as 3 anêmonas ocupam posições fixas diferentes", () => {
     const w = createMapWorld(CORAL, 1);
     w.godMode = true;
-    toWave(w, 3, "eel");
-    const dens = buildMap(CORAL, 1).eelDens;
-    const eels: Enemy[] = [];
-    for (let i = 0; i < w.enemies.count; i++) if (w.enemies.get(i).kind === "eel") eels.push(w.enemies.get(i));
-    expect(eels).toHaveLength(3);
-    const used = eels.map((e) => dens.findIndex((d) => len(d.x - e.x, d.y - e.y) < 1));
+    toWave(w, 3, "anemone");
+    const spots = buildMap(CORAL, 1).fixedEnemies;
+    const found: Enemy[] = [];
+    for (let i = 0; i < w.enemies.count; i++) if (w.enemies.get(i).kind === "anemone") found.push(w.enemies.get(i));
+    expect(found).toHaveLength(3);
+    const used = found.map((e) => spots.findIndex((d) => len(d.x - e.x, d.y - e.y) < 1));
     expect(used.every((i) => i >= 0)).toBe(true);
     expect(new Set(used).size).toBe(3);
   });

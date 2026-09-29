@@ -29,8 +29,6 @@ export function soundFor(e: SimEvent): SfxName | null {
       return "pickup";
     case "enemyDied":
       return "enemyDie";
-    case "spawnWarn":
-      return "spawn";
     case "bossAppeared":
       return "bossAppear";
     case "bossPhase":
@@ -45,6 +43,7 @@ export function soundFor(e: SimEvent): SfxName | null {
       return WARN.has(key) ? (key as SfxName) : null;
     }
     // sem som: ou são detalhe visual, ou já são cobertos por outro evento
+    case "spawnWarn": // o redemoinho de bolhas avisa sem som: nascer é frequente e o som cansava
     case "attackStart":
     case "bossVolley":
     case "pullStream":

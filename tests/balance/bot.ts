@@ -55,8 +55,6 @@ interface Target {
   radius: number;
   enemy?: Enemy;
   boss?: boolean;
-  /** Ponto onde esperar, quando o alvo ainda não pode ser atingido (enguia na toca). */
-  wait?: { x: number; y: number };
 }
 
 export class Bot {
@@ -219,7 +217,7 @@ export class Bot {
         const py = p.y - e.y;
         const pd = len(px, py) || 1;
         const space = e.radius + PR + 16;
-        if (pd < space && !(e.kind === "eel" && e.state === "hidden")) {
+        if (pd < space) {
           d.x += (px / pd) * 0.9 * (1 - pd / space);
           d.y += (py / pd) * 0.9 * (1 - pd / space);
         }
@@ -232,7 +230,7 @@ export class Bot {
       if (dist > reach) continue;
       near = true;
       // ataques em linha travada (peixe, circulador, lampreia, enguia): sai da faixa, de lado
-      const lane = e.kind === "fish" || e.kind === "circler" || e.kind === "lamprey" || e.kind === "eel";
+      const lane = e.kind === "fish" || e.kind === "circler" || e.kind === "lamprey";
       if (lane && (e.dirX !== 0 || e.dirY !== 0)) {
         const along = dx * e.dirX + dy * e.dirY;
         const side = dx * -e.dirY + dy * e.dirX;
@@ -324,43 +322,21 @@ export class Bot {
     }
     let best: Enemy | null = null;
     let bd = Infinity;
-    let hidden: Enemy | null = null;
     for (let i = 0; i < w.enemies.count; i++) {
       const e = w.enemies.get(i);
       if (e.dead) continue;
       const dd = len(e.x - p.x, e.y - p.y);
-      // a enguia escondida não pode ser atingida: só vale a pena quando sai da toca
-      if (e.kind === "eel" && (e.state === "hidden" || e.state === "telegraph")) {
-        // (a enguia que já recolheu mas ainda não escondeu é alvo: ver abaixo)
-        if (!hidden || dd < len(hidden.x - p.x, hidden.y - p.y)) hidden = e;
-        continue;
-      }
       if (dd < bd) {
         bd = dd;
         best = e;
       }
     }
-    if (best) return { x: best.x, y: best.y, radius: best.radius, enemy: best };
-    if (hidden) {
-      // provoca: chega a ~140 px da toca (dentro dos 160 do gatilho) e espera o bote
-      const dx = p.x - hidden.x;
-      const dy = p.y - hidden.y;
-      const l = len(dx, dy) || 1;
-      return {
-        x: hidden.x, y: hidden.y, radius: hidden.radius, enemy: hidden,
-        wait: { x: hidden.x + (dx / l) * 140, y: hidden.y + (dy / l) * 140 },
-      };
-    }
-    return null;
+    return best ? { x: best.x, y: best.y, radius: best.radius, enemy: best } : null;
   }
 
   /** Aproxima, ataca e recua. Devolve a direção do objetivo. */
   private engage(w: World, t: Target, out: PlayerIntent, busy: boolean): { gx: number; gy: number } {
     const p = w.player;
-    if (t.wait) {
-      const d = len(t.wait.x - p.x, t.wait.y - p.y);
-      return d < 24 ? { gx: 0, gy: 0 } : this.steer(w, t.wait.x, t.wait.y);
-    }
     const dx = t.x - p.x;
     const dy = t.y - p.y;
     const dist = len(dx, dy) || 1;
