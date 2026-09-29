@@ -19,6 +19,18 @@ await page.addInitScript(() => { window.requestAnimationFrame = () => 0; });
 await page.goto(protoPath.href);
 
 const traces = await page.evaluate(() => {
+  // A rede "parado 1,5 s → recoloca" do protótipo (unstick) empurra o chefe ~10 px mesmo sem
+  // ele estar preso. O jogo novo não tem essa rede (ARCHITECTURE §6.2). Na Água-viva e no Olho
+  // ela só faz esse empurrão, então fica DESLIGADA aqui e os rastros comparam o comportamento
+  // sem ela. No Caranguejo ela também muda o estado dele; ali o rastro marca o passo e o teste
+  // compara até ele.
+  let bossUnstuck = false;
+  const originalUnstick = unstick;
+  window.unstick = (e, r) => {
+    if (e !== boss) return originalUnstick(e, r);
+    bossUnstuck = true;
+    return boss.kind === "crab" ? originalUnstick(e, r) : true;
+  };
   // arena aberta: só a borda de 2 blocos; jogador no centro; nada nasce
   function setup() {
     // Sorteios fixos em 0,5 (serpenteio, órbita, cronômetros): o teste de paridade fixa a
@@ -27,6 +39,7 @@ const traces = await page.evaluate(() => {
     // As bolhas do protótipo também sorteiam: desligadas, só a lógica de jogo consome a
     // sequência aleatória, e ela pode ser comparada com a RNG da simulação nova.
     window.bubbles = () => {};
+    CONFIG.projectiles.erodeRock = true;
     resetGame();
     grid.fill(0);
     for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++)
@@ -51,6 +64,7 @@ const traces = await page.evaluate(() => {
       mouse.down = !!s.mouseDown; mouse.pressed = !!s.mousePressed;
       mouse.viewY = player.y;   // mira sempre na horizontal, para a direita
       if (game.hitStopMs > 0) { game.hitStopMs -= DTMS; out.push(null); continue; }
+      bossUnstuck = false;
       step();
       const e = enemies[0];
       const b = boss;
@@ -59,6 +73,11 @@ const traces = await page.evaluate(() => {
         bx: b ? b.x : null, by: b ? b.y : null, bvx: b ? b.vx : null, bvy: b ? b.vy : null,
         bstate: b ? b.state : null, bt: b ? b.t : null, bhp: b ? b.hp : null,
         bphase2: b ? b.phase2 : null, bblocked: b ? !!(b.blockedX || b.blockedY) : null,
+        bphase: b ? (b.kind === "eye" ? b.phase : b.phase2 ? 2 : 1) : null,
+        pcount: projectiles.length,
+        bunstuck: bossUnstuck,
+        // o ângulo do raio da Água-viva (a varredura só aparece nele se o raio não acertar)
+        bbeam: b && b.kind === "jelly" && (b.state === "beamTel" || b.state === "beam") ? b.beamAng : null,
         x: player.x, y: player.y, vx: player.vx, vy: player.vy,
         phase: player.spear.state, dashMs: player.dashMs, hitStop: game.hitStopMs,
         hp: player.hp, invulnMs: player.invulnMs, dead: game.dead, enemies: enemies.length,
@@ -99,6 +118,28 @@ const traces = await page.evaluate(() => {
     if (hp) boss.hp = hp;
     Math.random = lcg(seed);
   };
+  // Água-viva: no protótipo todos os projéteis erodiam a rocha (e sorteavam por isso); no jogo
+  // só os do Olho erodem (GDD §7.3). A erosão fica desligada nos cenários dela.
+  const jellyAt = (dx, dy, hp, seed) => () => {
+    spawnJelly();
+    boss.x = boss.lastX = player.x + dx;
+    boss.y = boss.lastY = player.y + dy;
+    if (hp) boss.hp = hp;
+    CONFIG.projectiles.erodeRock = false;
+    Math.random = lcg(seed);
+  };
+  // Olho: o spawnEye reconstrói a arena aberta com pilares e move o jogador. Aqui a arena fica
+  // só com a borda (sem pilares), o Olho no centro e o jogador embaixo dele.
+  const eyeAt = (hp, seed) => () => {
+    spawnEye();
+    for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++)
+      grid[y * COLS + x] = (x < 2 || y < 2 || x >= COLS - 2 || y >= ROWS - 2) ? 1 : 0;
+    pillars = [];
+    player.x = 930; player.y = 900; player.vx = player.vy = 0;
+    boss.x = boss.lastX = 930; boss.y = boss.lastY = 550;
+    if (hp) boss.hp = hp;
+    Math.random = lcg(seed);
+  };
   // estocadas repetidas, com carga curta
   const poke = (every) => (i) => ({ mouseDown: i % every < 3, mousePressed: i % every === 0 });
   return {
@@ -128,6 +169,14 @@ const traces = await page.evaluate(() => {
     crabVsIdle: run(() => ({}), 600, crabAt(240, 0, 0, 1)),
     crabVsSwimmer: run((i) => ({ keys: (i % 160) < 50 ? ["KeyW"] : (i % 160) < 100 ? ["KeyS"] : [] }), 600, crabAt(-220, 40, 0, 7)),
     crabPhase2: run(poke(20), 600, crabAt(150, 0, 216, 42)),
+    // Água-viva: anel, raio (esticar e varrer, sombra na borda), sucção com ferrões, fase 2
+    jellyVsIdle: run(() => ({}), 900, jellyAt(-200, 0, 0, 3)),
+    jellyVsSwimmer: run((i) => ({ keys: (i % 200) < 60 ? ["KeyA"] : (i % 200) < 120 ? ["KeyD"] : [] }), 900, jellyAt(200, -120, 0, 11)),
+    jellyPhase2: run(() => ({}), 900, jellyAt(-150, -150, 189, 5)),
+    // Olho nas três fases (sem pilares: a arena é só a borda)
+    eyePhase1: run(() => ({}), 900, eyeAt(0, 9)),
+    eyePhase2: run((i) => ({ keys: (i % 240) < 80 ? ["KeyA"] : (i % 240) < 160 ? ["KeyD"] : [] }), 900, eyeAt(369, 13)),
+    eyePhase3: run((i) => ({ keys: (i % 180) < 60 ? ["KeyW"] : (i % 180) < 120 ? ["KeyS"] : [] }), 900, eyeAt(184, 21)),
   };
 });
 writeFileSync(outPath, JSON.stringify(traces));

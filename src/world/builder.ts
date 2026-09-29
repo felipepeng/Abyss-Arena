@@ -23,6 +23,8 @@ export interface BuiltMap {
   bossSpawn: { x: number; y: number };
   spawnZones: PxRect[];
   fixedEnemies: { kind: EnemyKind; x: number; y: number }[];
+  /** Índices de bloco de cada pilar dissolvível. */
+  pillars: number[][];
 }
 
 const CHAR_CELL: Record<string, Cell> = {
@@ -119,6 +121,40 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
     }
   }
 
+  // galhos de coral: nascem numa célula `~` encostada numa coluna e crescem para cima
+  if (p.branches) {
+    for (let i = 0; i < p.branches.count; i++) {
+      for (let tries = 0; tries < 200; tries++) {
+        const cx = rng.int(0, cols - 1);
+        const cy = rng.int(0, rows - 1);
+        if (!canWrite(cx, cy) || grid.isSolid(cx, cy)) continue;
+        if (grid.get(cx - 1, cy) !== Cell.Coral && grid.get(cx + 1, cy) !== Cell.Coral) continue;
+        const n = rng.int(p.branches.length[0], p.branches.length[1]);
+        for (let k = 0; k < n && canWrite(cx, cy - k); k++) grid.set(cx, cy - k, Cell.Coral);
+        break;
+      }
+    }
+  }
+
+  // pilares: forma desenhada (centro e raios) com borda irregular, e a lista dos blocos de cada um
+  const pillars: number[][] = [];
+  for (const pl of def.markers.pillars ?? []) {
+    const group: number[] = [];
+    const reach = Math.ceil(Math.max(pl.rx, pl.ry)) + 1;
+    const noise = p.pillarEdgeNoise ?? 0;
+    for (let dy = -reach; dy <= reach; dy++) {
+      for (let dx = -reach; dx <= reach; dx++) {
+        const cx = Math.round(pl.x) + dx;
+        const cy = Math.round(pl.y) + dy;
+        if ((dx / pl.rx) ** 2 + (dy / pl.ry) ** 2 > 1 + rng.range(-noise, noise)) continue;
+        if (!canWrite(cx, cy) || grid.isSolid(cx, cy)) continue;
+        grid.set(cx, cy, Cell.Rock);
+        group.push(cy * cols + cx);
+      }
+    }
+    if (group.length > 0) pillars.push(group);
+  }
+
   const t = WORLD.tile;
   const center = (pt: { x: number; y: number }) => ({ x: (pt.x + 0.5) * t, y: (pt.y + 0.5) * t });
   const toPx = (r: TileRect): PxRect => ({ x: r.x * t, y: r.y * t, w: r.w * t, h: r.h * t });
@@ -129,5 +165,6 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
     bossSpawn: center(def.markers.bossSpawn),
     spawnZones: def.markers.spawnZones.map(toPx),
     fixedEnemies: def.markers.fixedEnemies.map((f) => ({ kind: f.kind, ...center(f.at) })),
+    pillars,
   };
 }

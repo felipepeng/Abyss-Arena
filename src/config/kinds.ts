@@ -3,4 +3,4 @@
 
 export type EnemyKind = "fish" | "circler" | "dummy" | "dummyBig";
 
-export type BossKind = "crab";
+export type BossKind = "crab" | "jelly" | "eye";

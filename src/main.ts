@@ -7,6 +7,7 @@ import { parseSeed, randomSeed } from "./core/rng";
 import { DebugOverlay } from "./debug/overlay";
 import { GameScene } from "./scenes/game";
 import { SceneManager } from "./scenes/manager";
+import { MAPS } from "./world/maps/registry";
 import { RIFT } from "./world/maps/rift";
 
 const canvas = document.getElementById("game");
@@ -27,8 +28,10 @@ attachDomInput(input, canvas, VIEW.width, VIEW.height);
 
 const debug = new DebugOverlay(DEBUG.fpsSampleMs, params.has("debug"));
 const scenes = new SceneManager(SCENE.fadeMs, SCENE.fadeColor);
-// `?arena=test` abre a arena de teste do M1–M2 (sacos de pancada, nascimento por tempo)
-const mode = params.get("arena") === "test" ? ({ kind: "test" } as const) : ({ kind: "map", map: RIFT } as const);
+// Até existirem os menus (M6), o mapa vem da URL: `?map=rift|coral|abyss` (padrão: rift).
+// `?arena=test` abre a arena de teste do M1–M2 (sacos de pancada, nascimento por tempo).
+const map = MAPS[params.get("map") ?? "rift"] ?? RIFT;
+const mode = params.get("arena") === "test" ? ({ kind: "test" } as const) : ({ kind: "map", map } as const);
 scenes.start(new GameScene(input, scenes, debug, seed, mode));
 
 const loop = new FixedStepLoop(SIM.stepMs, SIM.maxFrameMs, {

@@ -44,6 +44,12 @@ interface ProtoStep {
   bhp?: number | null;
   bphase2?: boolean | null;
   bblocked?: boolean | null;
+  /** Fase do chefe contada a partir de 1 (o protótipo: fase do Olho, ou 1/2 pelo phase2). */
+  bphase?: number | null;
+  pcount?: number;
+  /** A rede "parado 1,5 s → recoloca" do protótipo disparou neste passo. */
+  bunstuck?: boolean;
+  bbeam?: number | null;
 }
 
 type Trace = (ProtoStep | null)[];
@@ -61,7 +67,7 @@ interface Frame {
 const PROTO_START = { x: 480, y: 270 };
 
 /** Repete o roteiro no nosso mundo. Passos congelados pelo hit-stop viram null, como no rastro. */
-function replay(w: World, n: number, script: (i: number) => Frame): Trace {
+function replay(w: World, n: number, script: (i: number) => Frame, origin = PROTO_START): Trace {
   const x0 = w.player.x;
   const y0 = w.player.y;
   const out: Trace = [];
@@ -88,8 +94,11 @@ function replay(w: World, n: number, script: (i: number) => Frame): Trace {
     const d = w.enemies.count > 0 ? w.enemies.get(0) : undefined;
     const b = w.bosses[0];
     out.push({
-      bx: b ? b.x - x0 + PROTO_START.x : null,
-      by: b ? b.y - y0 + PROTO_START.y : null,
+      bbeam: b && b.kind === "jelly" && b.attack === "beam" && b.state !== "think" ? (b.data.beamAng ?? null) : null,
+      bphase: b ? b.phase + 1 : null,
+      pcount: w.projectiles.count,
+      bx: b ? b.x - x0 + origin.x : null,
+      by: b ? b.y - y0 + origin.y : null,
       bvx: b ? b.vx : null,
       bvy: b ? b.vy : null,
       bstate: b ? protoBossState(b) : null,
@@ -97,8 +106,8 @@ function replay(w: World, n: number, script: (i: number) => Frame): Trace {
       bhp: b ? b.hp : null,
       bphase2: b ? b.phase >= 1 : null,
       // relativo ao início, trazido para o referencial do protótipo
-      x: p.x - x0 + PROTO_START.x,
-      y: p.y - y0 + PROTO_START.y,
+      x: p.x - x0 + origin.x,
+      y: p.y - y0 + origin.y,
       vx: p.vx,
       vy: p.vy,
       phase: p.spear.phase,
@@ -108,8 +117,8 @@ function replay(w: World, n: number, script: (i: number) => Frame): Trace {
       invulnMs: p.invulnMs,
       dead: w.playerDead,
       enemies: w.enemies.count,
-      ex: d ? d.x - x0 + PROTO_START.x : null,
-      ey: d ? d.y - y0 + PROTO_START.y : null,
+      ex: d ? d.x - x0 + origin.x : null,
+      ey: d ? d.y - y0 + origin.y : null,
       evx: d ? d.vx : null,
       evy: d ? d.vy : null,
       estate: d ? d.state : null,
@@ -301,6 +310,8 @@ describe("paridade com o protótipo: inimigos", () => {
 // também (execução de 0 ms). Os sorteios vêm do mesmo gerador congruencial dos dois lados
 // (o gerador de rastros desliga as bolhas do protótipo, que também sorteavam).
 
+const isCrabState = (s: string): boolean => /^(dash|pinch|call)/.test(s);
+
 function protoBossState(b: Boss): string {
   if (b.state === "think") return "think";
   return b.state === "telegraph" ? `${b.attack}Tel` : b.attack;
@@ -325,8 +336,10 @@ function crabWorld(dx: number, dy: number, hp: number, seed: number): World {
 }
 
 function expectSameBossTrace(ours: Trace, proto: Trace): void {
-  // até o primeiro passo em que alguém encosta na parede (ali a colisão difere de propósito)
-  const wall = proto.findIndex((s) => s !== null && (s.pblocked || s.bblocked));
+  // Até o primeiro passo em que alguém encosta na parede (ali a colisão difere de propósito) ou
+  // em que a rede "parado 1,5 s → recoloca" do protótipo mexe no Caranguejo (o jogo novo não
+  // tem essa rede, ARCHITECTURE §6.2; na Água-viva e no Olho o gerador a desliga).
+  const wall = proto.findIndex((s) => s !== null && (s.pblocked || s.bblocked || (s.bunstuck && isCrabState(s.bstate ?? ""))));
   const n = wall < 0 ? proto.length : wall;
   for (let i = 0; i < n; i++) {
     const a = ours[i];
@@ -343,7 +356,9 @@ function expectSameBossTrace(ours: Trace, proto: Trace): void {
     expect(a.by, `${where} chefe y`).toBeCloseTo(b.by ?? NaN, 6);
     expect(a.bvx, `${where} chefe vx`).toBeCloseTo(b.bvx ?? NaN, 6);
     expect(a.bvy, `${where} chefe vy`).toBeCloseTo(b.bvy ?? NaN, 6);
-    expect(a.bt, `${where} cronômetro do chefe`).toBeCloseTo(b.bt ?? NaN, 6);
+    // Execuções "até terminar" (salvas, raio) têm cronômetro infinito aqui e o intervalo da
+    // salva no protótipo: é só representação; o estado, as posições e os projéteis contam.
+    if (Number.isFinite(a.bt)) expect(a.bt, `${where} cronômetro do chefe`).toBeCloseTo(b.bt ?? NaN, 6);
     expect(a.bhp, `${where} vida do chefe`).toBeCloseTo(b.bhp ?? NaN, 6);
     expect(a.phase, `${where} lança`).toBe(b.phase);
     expect(a.x, `${where} jogador x`).toBeCloseTo(b.x, 6);
@@ -352,6 +367,9 @@ function expectSameBossTrace(ours: Trace, proto: Trace): void {
     expect(a.dead, `${where} morto`).toBe(b.dead);
     // capangas do chamado: a quantidade (a ordem no pool difere da do array do protótipo)
     expect(a.enemies, `${where} peixes invocados`).toBe(b.enemies);
+    if (b.pcount !== undefined) expect(a.pcount, `${where} projéteis vivos`).toBe(b.pcount);
+    if (b.bbeam !== undefined && b.bbeam !== null) expect(a.bbeam, `${where} ângulo do raio`).toBeCloseTo(b.bbeam, 6);
+    if (b.bphase !== undefined && b.bphase !== null) expect(a.bphase, `${where} fase do chefe`).toBe(b.bphase);
   }
 }
 
@@ -371,5 +389,57 @@ describe("paridade com o protótipo: Caranguejo", () => {
     const w = crabWorld(150, 0, 216, 42);
     const poke20 = (i: number): Frame => ({ mouse: i % 20 < 3, press: i % 20 === 0 });
     expectSameBossTrace(replay(w, len("crabPhase2"), poke20), T.crabPhase2 ?? []);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Água-viva e Olho (M4). Mesma técnica do Caranguejo: a mesma sequência aleatória dos dois
+// lados. Na Água-viva a erosão fica desligada no protótipo (lá todo projétil erodia e
+// sorteava; no jogo só os do Olho erodem, GDD §7.3). O Olho joga numa arena só com a borda.
+
+function bossWorld(kind: "jelly" | "eye", grid: ReturnType<typeof openGrid>, start: { x: number; y: number }, bx: number, by: number, hp: number, seed: number): World {
+  const w = openWorld({ grid, start });
+  pinRng(w);
+  const b = createBoss(w, kind, bx, by);
+  activateBoss(b);
+  if (hp) b.hp = hp;
+  w.rng.next = lcg(seed);
+  return w;
+}
+
+const jellyWorld = (dx: number, dy: number, hp: number, seed: number) =>
+  bossWorld("jelly", openGrid(48, 27), { ...PROTO_START }, PROTO_START.x + dx, PROTO_START.y + dy, hp, seed);
+
+const EYE_START = { x: 930, y: 900 };
+const eyeWorld = (hp: number, seed: number) => bossWorld("eye", openGrid(93, 55), { ...EYE_START }, 930, 550, hp, seed);
+
+describe("paridade com o protótipo: Água-viva", () => {
+  it("contra um jogador parado: anel de esporos", () => {
+    expectSameBossTrace(replay(jellyWorld(-200, 0, 0, 3), len("jellyVsIdle"), () => ({})), T.jellyVsIdle ?? []);
+  });
+
+  it("contra um jogador que nada: anel, raio (esticar, varrer, sombra na borda) e sucção", () => {
+    const script = (i: number): Frame => ({ move: i % 200 < 60 ? move("KeyA") : i % 200 < 120 ? move("KeyD") : [0, 0] });
+    expectSameBossTrace(replay(jellyWorld(200, -120, 0, 11), len("jellyVsSwimmer"), script), T.jellyVsSwimmer ?? []);
+  });
+
+  it("fase 2", () => {
+    expectSameBossTrace(replay(jellyWorld(-150, -150, 189, 5), len("jellyPhase2"), () => ({})), T.jellyPhase2 ?? []);
+  });
+});
+
+describe("paridade com o protótipo: Olho", () => {
+  it("fase 1: leque em salvas e cerco", () => {
+    expectSameBossTrace(replay(eyeWorld(0, 9), len("eyePhase1"), () => ({}), EYE_START), T.eyePhase1 ?? []);
+  });
+
+  it("fase 2: espiral de dois braços e perseguidores que atravessam a rocha", () => {
+    const script = (i: number): Frame => ({ move: i % 240 < 80 ? move("KeyA") : i % 240 < 160 ? move("KeyD") : [0, 0] });
+    expectSameBossTrace(replay(eyeWorld(369, 13), len("eyePhase2"), script, EYE_START), T.eyePhase2 ?? []);
+  });
+
+  it("fase 3", () => {
+    const script = (i: number): Frame => ({ move: i % 180 < 60 ? move("KeyW") : i % 180 < 120 ? move("KeyS") : [0, 0] });
+    expectSameBossTrace(replay(eyeWorld(184, 21), len("eyePhase3"), script, EYE_START), T.eyePhase3 ?? []);
   });
 });

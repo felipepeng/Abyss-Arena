@@ -17,6 +17,12 @@ export type SimEvent =
   /** O chefe bateu na rocha no meio de um ataque (a investida contra uma formação). */
   | { t: "bossImpact"; x: number; y: number; boss: BossKind }
   | { t: "bossDied"; x: number; y: number; radius: number; boss: BossKind }
+  /** Uma salva de um ataque de várias (anel da Água-viva, leque do Olho). */
+  | { t: "bossVolley"; x: number; y: number; boss: BossKind; attack: string }
+  /** Bolha na corrente da sucção (sorteada na simulação para manter a sequência do protótipo). */
+  | { t: "pullStream"; x: number; y: number }
+  /** Um bloco de pilar dissolveu (o sorteio da bolha é da simulação, como no protótipo). */
+  | { t: "pillarCrumble"; x: number; y: number }
   /** O chefe entrou em cena (começo da entrada). */
   | { t: "bossAppeared"; x: number; y: number; boss: BossKind }
   /** Um inimigo vai nascer aqui daqui a pouco: nascer também é telegrafado (GDD §3.1). */

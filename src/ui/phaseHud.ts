@@ -1,7 +1,7 @@
 import { FONT_FAMILY, VIEW } from "../config/system";
 import { clamp, len } from "../core/math";
 import { BOSS_DEFS } from "../sim/bosses/registry";
-import type { Boss } from "../sim/bosses/types";
+import type { Boss, BossKind } from "../sim/bosses/types";
 import { remainingInWave } from "../sim/phase";
 import type { World } from "../sim/world";
 
@@ -14,8 +14,11 @@ export interface TitleCard {
   line: string;
 }
 
-const BOSS_COLORS: Record<string, readonly [string, string]> = {
-  crab: ["#e08a3c", "#ff5a3c"],
+/** Cor da barra de vida por fase, e da seta de fora da tela (CONTEXTO §2.3). */
+const BOSS_COLORS: Record<BossKind, { bar: readonly string[]; arrow: string }> = {
+  crab: { bar: ["#e08a3c", "#ff5a3c"], arrow: "#e08a3c" },
+  jelly: { bar: ["#5fd9c4", "#ff6fc0"], arrow: "#5fd9c4" },
+  eye: { bar: ["#6ad8ff", "#ffa04a", "#ff5a9e"], arrow: "#ff9ad8" },
 };
 
 export function drawPhaseHud(g: CanvasRenderingContext2D, w: World, title: TitleCard, camX: number, camY: number): void {
@@ -99,8 +102,8 @@ function drawBossBar(g: CanvasRenderingContext2D, b: Boss, fill: number): void {
   g.fillRect(x - 3, y - 3, w + 6, 20);
   g.fillStyle = "#3a1414";
   g.fillRect(x, y, w, 14);
-  const colors = BOSS_COLORS[b.kind] ?? ["#e08a3c", "#ff5a3c"];
-  g.fillStyle = b.phase >= 1 ? colors[1] : colors[0];
+  const bar = BOSS_COLORS[b.kind].bar;
+  g.fillStyle = bar[Math.min(b.phase, bar.length - 1)] ?? "#e08a3c";
   g.fillRect(x, y, w * clamp(fill, 0, 1), 14);
   g.strokeStyle = "rgba(255,255,255,0.35)";
   g.lineWidth = 1;
@@ -115,7 +118,10 @@ function drawBossBar(g: CanvasRenderingContext2D, b: Boss, fill: number): void {
   }
   g.fillStyle = "#ffdfc0";
   g.font = `12px ${FONT_FAMILY}`;
-  g.fillText(b.phase >= 1 ? `${def.name}  — ${def.rageLabel}` : def.name, W / 2, y + 30);
+  // chefes de 3 fases mostram a fase; os de 2, o rótulo de fúria na segunda
+  const suffix =
+    def.phases.length > 2 ? `  — FASE ${b.phase + 1}/${def.phases.length}` : b.phase >= 1 ? `  — ${def.rageLabel}` : "";
+  g.fillText(def.name + suffix, W / 2, y + 30);
 }
 
 /**
@@ -143,7 +149,7 @@ function drawOffscreenArrow(g: CanvasRenderingContext2D, b: Boss, w: World, camX
   g.translate(px, py);
   g.rotate(Math.atan2(dy, dx));
   g.globalAlpha = 0.85;
-  g.fillStyle = BOSS_COLORS[b.kind]?.[0] ?? "#e08a3c";
+  g.fillStyle = BOSS_COLORS[b.kind].arrow;
   g.beginPath();
   g.moveTo(13, 0);
   g.lineTo(-9, -9);

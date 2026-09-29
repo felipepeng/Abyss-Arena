@@ -87,12 +87,11 @@ export function stepProjectiles(w: World, dtMs: number): void {
   const pl = w.player;
   const grid = w.grid;
   const pool = w.projectiles;
-  for (let i = pool.count - 1; i >= 0; i--) {
+  // Em ordem de criação, e os que somem só saem no fim (compactação estável): quando dois
+  // acertam o jogador no mesmo passo, o primeiro criado é o que empurra, como no protótipo.
+  for (let i = 0; i < pool.count; i++) {
     const p = pool.get(i);
-    if (p.dead) {
-      pool.removeAt(i);
-      continue;
-    }
+    if (p.dead) continue;
     p.prevX = p.x;
     p.prevY = p.y;
     p.life -= dtMs;
@@ -126,9 +125,12 @@ export function stepProjectiles(w: World, dtMs: number): void {
         gone = true;
       }
     }
-    if (gone) pool.removeAt(i);
+    if (gone) p.dead = true;
   }
+  pool.removeWhere(isDead);
 }
+
+const isDead = (p: Projectile): boolean => p.dead;
 
 /** O impacto pode destruir o bloco atingido. Só rocha comum: a protegida nunca erode. */
 function erodeAt(w: World, x: number, y: number): void {

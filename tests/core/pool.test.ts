@@ -87,3 +87,15 @@ describe("Pool", () => {
     expect(() => pool.removeAt(-1)).toThrow(RangeError);
   });
 });
+
+describe("Pool.removeWhere", () => {
+  it("tira os marcados mantendo a ordem dos vivos, e reaproveita os objetos", () => {
+    const { pool, created } = makePool(10);
+    fill(pool, [0, 1, 2, 3, 4, 5, 6]);
+    for (let i = 0; i < pool.count; i++) pool.get(i).dead = [1, 4, 5].includes(pool.get(i).id);
+    pool.removeWhere((t) => t.dead);
+    expect(Array.from({ length: pool.count }, (_, i) => pool.get(i).id)).toEqual([0, 2, 3, 6]);
+    fill(pool, [7, 8, 9]);
+    expect(created()).toBe(7);
+  });
+});

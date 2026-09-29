@@ -65,13 +65,19 @@ export interface Aim {
 export interface AttackDef {
   telegraphMs(b: Boss): number;
   /** A cada passo do aviso (frear, travar a mira). */
-  onTelegraph?(b: Boss, w: World, dt: number, aim: Aim): void;
-  /** Duração da execução. 0 = o ataque acontece de uma vez no fim do aviso. */
+  onTelegraph?(b: Boss, w: World, dt: number, aim: Aim, dtMs: number): void;
+  /**
+   * Duração da execução. 0 = o ataque acontece de uma vez no fim do aviso; Infinity = dura até
+   * `onExecute` devolver true (as salvas do leque, o raio que precisa esticar antes de varrer).
+   */
   executeMs(b: Boss): number;
   /** No passo em que a execução começa. */
   onStart?(b: Boss, w: World): void;
-  /** A cada passo da execução. Devolve true para terminar antes do tempo. */
-  onExecute?(b: Boss, w: World, dt: number, aim: Aim): boolean | void;
+  /**
+   * A cada passo da execução. Devolve true para terminar antes do tempo. `dt` em segundos
+   * (física); `dtMs` é o passo exato, para cronômetros em ms (ver o cabeçalho do runner).
+   */
+  onExecute?(b: Boss, w: World, dt: number, aim: Aim, dtMs: number): boolean | void;
   /** Ao terminar: encadear outro aviso (a investida dupla do Caranguejo) ou voltar a pensar. */
   next?(b: Boss, w: World): { attack: string; telegraphMs: number } | null;
   /** Na execução, sem teto de velocidade (a investida). */
@@ -103,6 +109,8 @@ export interface BossDef {
   readonly phases: readonly BossPhase[];
   /** Pausa curta logo depois de mudar de fase. */
   readonly phaseChangeThinkMs: number;
+  /** Pausa antes do primeiro ataque, se diferente da da fase 1 (o Olho espera mais). */
+  readonly firstThinkMs?: number;
   readonly attacks: Readonly<Record<string, AttackDef>>;
   /** O que ele faz enquanto pensa (se aproximar, vagar). */
   think(b: Boss, w: World, dt: number, aim: Aim): void;
@@ -112,4 +120,14 @@ export interface BossDef {
   readonly slide?: { durationMs: number; accelScale: number };
   /** Ao entrar numa fase nova (dissolver pilares, no Olho). */
   onPhaseEnter?(b: Boss, w: World, phase: number): void;
+  /** A troca de fase gasta o passo inteiro: nada mais acontece nele (o Olho). */
+  readonly phaseChangeSkipsStep?: boolean;
+  /** Freio (1/s) durante avisos e execuções: o chefe fica ancorado enquanto ataca. */
+  readonly attackBrake?: number;
+  /** O contato vale dentro de `radius · contactRadiusScale` (padrão 1). */
+  readonly contactRadiusScale?: number;
+  /** Campos de `data` e sorteios do nascimento. */
+  init?(b: Boss, w: World): void;
+  /** A cada passo, depois do cronômetro: estado só visual (pulsação), em `data`. */
+  animate?(b: Boss, dt: number): void;
 }

@@ -103,8 +103,12 @@ export function stepEnemies(w: World, dtMs: number): void {
   }
 }
 
-/** Tira do pool os mortos do passo. No fim do passo, como o `filter` do protótipo. */
+/**
+ * Tira do pool os mortos do passo, no fim do passo e mantendo a ordem de nascimento, como o
+ * `filter` do protótipo: a ordem decide quem fere primeiro quando dois encostam juntos.
+ */
 export function removeDeadEnemies(w: World): void {
-  const pool = w.enemies;
-  for (let i = pool.count - 1; i >= 0; i--) if (pool.get(i).dead) pool.removeAt(i);
+  w.enemies.removeWhere(isDead);
 }
+
+const isDead = (e: Enemy): boolean => e.dead;

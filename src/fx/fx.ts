@@ -1,3 +1,4 @@
+import { JELLY } from "../config/bosses/jelly";
 import { FX } from "../config/fx";
 import type { SimEvent } from "../sim/events";
 import { Bubbles } from "./particles";
@@ -39,6 +40,10 @@ export class Fx {
       } else if (attack === "call") {
         b.emit(x, y, FX.crab.call.bubbles);
       }
+    } else if (source === "jelly" && attack === "beam") {
+      this.shake.add(FX.jelly.beam.shake.ms, FX.jelly.beam.shake.amp);
+    } else if (source === "eye" && attack === "seek") {
+      b.emit(x, y, FX.eye.seek.bubbles);
     }
   }
 
@@ -75,9 +80,28 @@ export class Fx {
       case "bossAppeared":
         this.shake.add(FX.bossAppeared.shake.ms, FX.bossAppeared.shake.amp);
         break;
-      case "bossPhase":
-        b.emit(e.x, e.y, FX.crab.phase2.bubbles);
-        this.shake.add(FX.crab.phase2.shake.ms, FX.crab.phase2.shake.amp);
+      case "bossPhase": {
+        const fx = e.boss === "crab" ? FX.crab.phase2 : e.boss === "jelly" ? FX.jelly.phase2 : FX.eye.phase;
+        b.emit(e.x, e.y, fx.bubbles);
+        this.shake.add(fx.shake.ms, fx.shake.amp);
+        break;
+      }
+      case "bossVolley":
+        if (e.attack === "ring") {
+          b.emit(e.x, e.y, FX.jelly.ring.bubbles, JELLY.radius * FX.jelly.ring.spreadScale);
+          this.shake.add(FX.jelly.ring.shake.ms, FX.jelly.ring.shake.amp);
+        } else if (e.attack === "fan") {
+          this.shake.add(FX.eye.fan.shake.ms, FX.eye.fan.shake.amp);
+        } else if (e.attack === "siege") {
+          b.emit(e.x, e.y, FX.eye.siege.bubbles);
+          this.shake.add(FX.eye.siege.shake.ms, FX.eye.siege.shake.amp);
+        }
+        break;
+      case "pullStream":
+        b.emit(e.x, e.y, FX.jelly.pullStream.bubbles);
+        break;
+      case "pillarCrumble":
+        b.emit(e.x, e.y, FX.pillarCrumble.bubbles);
         break;
       case "bossImpact":
         this.shake.add(FX.crab.impact.shake.ms, FX.crab.impact.shake.amp);

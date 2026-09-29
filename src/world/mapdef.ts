@@ -49,6 +49,10 @@ export interface ProceduralParams {
   floor?: ReliefParams & { fromRow: number };
   /** Colunas penduradas no teto (ou erguidas do chão). */
   stalactites?: { count: number; length: readonly [number, number]; fromTopChance: number };
+  /** Galhos de coral: 1–2 blocos crescendo de lado a partir de uma coluna, em células `~`. */
+  branches?: { count: number; length: readonly [number, number] };
+  /** Irregularidade da borda dos pilares (Fosso). */
+  pillarEdgeNoise?: number;
   /** Blobs elípticos de rocha, só em células `~`. */
   blobs?: {
     count: readonly [number, number];
@@ -72,6 +76,11 @@ export interface MapDef {
     fixedEnemies: readonly { kind: EnemyKind; at: TilePt }[];
     /** Tocas de enguia (M5). */
     eelDens: readonly TilePt[];
+    /**
+     * Pilares dissolvíveis (Fosso): centro e raios em blocos. A forma é desenhada (aprendível);
+     * a borda ganha uma variação procedural pequena. Precisam estar em células `~`.
+     */
+    pillars?: readonly { x: number; y: number; rx: number; ry: number }[];
   };
   procedural: ProceduralParams;
   palette: Palette;

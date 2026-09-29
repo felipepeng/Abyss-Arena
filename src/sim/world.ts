@@ -39,6 +39,10 @@ export interface World {
   readonly spawner: TestSpawner;
   /** Fluxo de fase (ondas → chefe). Nulo na arena de teste. */
   readonly phase: PhaseFlow | null;
+  /** Pilares do Fosso: índices de bloco de cada um. O Olho os dissolve por fase. */
+  readonly pillars: number[][];
+  /** Quantos pilares o mapa tinha no começo. */
+  readonly pillarsTotal: number;
   /** > 0 congela a simulação (o laço consulta isso antes de cada passo). */
   hitStopMs: number;
   timeMs: number;
@@ -59,6 +63,8 @@ export interface WorldSetup {
   spawner: boolean;
   /** Ondas e chefe. Sem isto, não há fluxo de fase. */
   phase?: PhaseSetup;
+  /** Pilares dissolvíveis (índices de bloco de cada um). */
+  pillars?: number[][];
 }
 
 /**
@@ -82,6 +88,8 @@ export function createWorld(seed: number, setup: WorldSetup): World {
     events: new EventBuffer(),
     spawner: createTestSpawner(setup.spawner),
     phase: setup.phase ? createPhaseFlow(setup.phase) : null,
+    pillars: setup.pillars ? setup.pillars.map((p) => [...p]) : [],
+    pillarsTotal: setup.pillars?.length ?? 0,
     hitStopMs: 0,
     timeMs: 0,
     nextId: 1,
@@ -110,6 +118,7 @@ export function createMapWorld(def: MapDef, seed: number): World {
     enemies: map.fixedEnemies,
     spawner: false,
     phase: { waves: def.waves, boss: def.boss, bossSpawn: map.bossSpawn, spawnZones: map.spawnZones },
+    pillars: map.pillars,
   });
 }
 

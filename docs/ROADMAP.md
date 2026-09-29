@@ -8,7 +8,7 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M4 — Água-viva e Olho** (não iniciado). M3 implementado; falta jogá-lo à mão.
+**Marco atual: M5 — Inimigos exclusivos** (não iniciado). M3 e M4 implementados; falta jogá-los à mão.
 M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
 contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
@@ -131,22 +131,42 @@ protótipo e a investida bate nas formações.
 
 ---
 
-## ⬜ M4 — Água-viva e Olho
+## 🟨 M4 — Água-viva e Olho
 
-- [ ] **Jardim de Corais** (GDD §7.2): layout, colunas de coral, tocas marcadas, paleta.
-- [ ] **Água-viva** portada: anel, raio (com os subestágios `extend`/`sweep` e as 7 regras),
+- [x] **Jardim de Corais** (GDD §7.2): layout, colunas de coral, tocas marcadas, paleta.
+- [x] **Água-viva** portada: anel, raio (com os subestágios `extend`/`sweep` e as 7 regras),
       sucção, fase 2.
-- [ ] Medir a cobertura do raio (direções cortadas antes de 300 px) e ajustar o layout para a
+- [x] Medir a cobertura do raio (direções cortadas antes de 300 px) e ajustar o layout para a
       faixa de 35 a 50 em 64.
-- [ ] **Fosso do Abismo** (GDD §7.3): anel de pilares desenhado, dissolução por fase, erosão
+- [x] **Fosso do Abismo** (GDD §7.3): anel de pilares desenhado, dissolução por fase, erosão
       só por projéteis do Olho.
-- [ ] **Olho** portado: leque, espiral, cerco, perseguidores, chuva, 3 fases, reações do
+- [x] **Olho** portado: leque, espiral, cerco, perseguidores, chuva, 3 fases, reações do
       `onPhaseEnter`.
-- [ ] Teste: `ω · hoverDist < 250` para todo ataque rotacional.
+- [x] Teste: `ω · hoverDist < 250` para todo ataque rotacional.
 
 **Pronto quando:** as três fases são jogáveis do começo ao fim (só com peixe e circulador nas
 ondas); o harness do "jogador atrás do pilar" no Olho dá números da mesma ordem do protótipo
 (CONTEXTO §6.3).
+
+**Estado (2026-09-29):**
+- Água-viva e Olho batem com o **código do protótipo** passo a passo em 6 cenários (anel, raio
+  esticando e varrendo, sucção, fase 2; leque em salvas, espiral, cerco, perseguidores, as 3
+  fases), com a mesma sequência aleatória dos dois lados. Mutações de 1–2% em giro da espiral,
+  varredura e ponta do raio e intervalo do leque são detectadas.
+- Cobertura do raio no Jardim de Corais: **~38 de 64** direções cortadas antes de 300 px (faixa
+  pedida: 35–50). Corredores ≥ 80 px com os galhos, conferido em 8 sementes.
+- Harness "jogador travado atrás de um pilar por 60 s" no Fosso: **~137 de dano na fase 1 e
+  ~274 na fase 2** (média de 3 sementes), contra 336 e 872 no protótipo. Mesma ordem de
+  grandeza, e a fase 2 bem pior que a 1, mas o Fosso novo protege 2,5–3× mais. Entra no
+  balanceamento do Olho no M8 (GDD §8.3).
+- Achado da paridade: a rede "parado 1,5 s → recoloca" do protótipo dispara em toda luta da
+  Água-viva e do Olho (depois de cada ataque longo e ancorado) e empurra o chefe ~10 px. O jogo
+  novo não tem essa rede, então esse tremor sumiu.
+- Projéteis e inimigos agora são percorridos na ordem de criação, com remoção estável: dois
+  projéteis que acertam no mesmo passo empurram o jogador para o lado do primeiro, como no
+  protótipo.
+- As ondas do Coral e do Fosso têm só peixes e circuladores até o M5.
+- Falta jogar as duas fases à mão.
 
 ---
 

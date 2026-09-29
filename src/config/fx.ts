@@ -74,4 +74,21 @@ export const FX = {
     pinch: { bubbles: { count: 24, color: "#ffc9a0", spread: 0, speed: 320 }, spreadScale: 0.5, shake: { ms: 220, amp: 7 } },
     call: { bubbles: { count: 22, color: "#a8ffd8", spread: 22, speed: 280 } },
   },
+  /** Água-viva (CONTEXTO §6.2). */
+  jelly: {
+    phase2: { bubbles: { count: 30, color: "#b9fff0", spread: 30, speed: 320 }, shake: { ms: 380, amp: 7 } },
+    /** Cada onda do anel; o espalhamento é proporcional ao raio do sino. */
+    ring: { bubbles: { count: 12, color: "#8affe0", spread: 0, speed: 180 }, spreadScale: 0.5, shake: { ms: 110, amp: 3 } },
+    beam: { shake: { ms: 160, amp: 4 } },
+    pullStream: { bubbles: { count: 1, color: "#a8e6ff", spread: 8, speed: 40 } },
+  },
+  /** Olho (CONTEXTO §6.3). */
+  eye: {
+    phase: { bubbles: { count: 36, color: "#ffc2f0", spread: 32, speed: 340 }, shake: { ms: 480, amp: 9 } },
+    fan: { shake: { ms: 90, amp: 2 } },
+    siege: { bubbles: { count: 14, color: "#ff9ad8", spread: 30, speed: 200 }, shake: { ms: 180, amp: 4 } },
+    seek: { bubbles: { count: 16, color: "#c8a0ff", spread: 24, speed: 220 } },
+  },
+  /** Bloco de pilar dissolvendo. */
+  pillarCrumble: { bubbles: { count: 1, color: "#7f9e94", spread: 7, speed: 130 } },
 } as const;

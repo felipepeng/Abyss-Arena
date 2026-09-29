@@ -1,12 +1,12 @@
-// Pool de objetos com teto e remoção por swap-remove.
+// Pool de objetos com teto. Os objetos vivos ficam em [0, count); nada é alocado por passo (o
+// protótipo fazia `filter` em três arrays a cada passo).
 //
-// Os objetos vivos ficam em [0, count). Remover troca o objeto com o último vivo, então
-// nada é alocado nem deslocado por passo (o protótipo fazia `filter` em três arrays a
-// cada passo). A ordem dos vivos não é preservada.
-//
-// Para remover durante a iteração, percorra de trás para frente:
-//   for (let i = pool.count - 1; i >= 0; i--) if (morto(pool.get(i))) pool.removeAt(i);
-// O objeto que cai em `i` veio do fim, que já foi visitado.
+// Duas formas de remover:
+// - `removeAt(i)`: swap-remove, O(1), NÃO preserva a ordem. Para remover durante a iteração,
+//   percorra de trás para frente (o objeto que cai em `i` veio do fim, que já foi visitado).
+// - `removeWhere(morto)`: compactação estável, O(n), PRESERVA a ordem de criação. Use quando a
+//   ordem decide o resultado: dois projéteis que acertam o jogador no mesmo passo empurram
+//   para lados diferentes, e o primeiro criado é o que conta (como no protótipo).
 
 export class Pool<T> {
   private readonly items: T[] = [];
@@ -45,6 +45,25 @@ export class Pool<T> {
       this.items[i] = this.items[last] as T;
       this.items[last] = removed;
     }
+  }
+
+  /**
+   * Tira todos os objetos para os quais `dead` é true, mantendo a ordem dos vivos. Os mortos
+   * vão para a região livre, para serem reaproveitados.
+   */
+  removeWhere(dead: (item: T) => boolean): void {
+    const items = this.items;
+    let j = 0;
+    for (let i = 0; i < this.n; i++) {
+      const item = items[i] as T;
+      if (dead(item)) continue;
+      if (i !== j) {
+        items[i] = items[j] as T;
+        items[j] = item;
+      }
+      j++;
+    }
+    this.n = j;
   }
 
   clear(): void {

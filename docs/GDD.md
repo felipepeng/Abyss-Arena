@@ -492,6 +492,9 @@ Pausa entre ataques: 700 → 520 → 380 ms.
 - **A revisar no M8:** com a invulnerabilidade do dash, cerco e espiral podem ficar fáceis
   demais. Candidatos a ajuste: mais projéteis no cerco, menos intervalo na espiral. Medir antes
   de mexer.
+- **Medido no M4:** travado atrás de um pilar por 60 s, o jogador leva ~137 de dano na fase 1 e
+  ~274 na fase 2 no Fosso novo, contra 336 e 872 no protótipo (pilares sorteados). Os pilares
+  desenhados protegem mais. Considerar junto com o ponto acima.
 
 ---
 

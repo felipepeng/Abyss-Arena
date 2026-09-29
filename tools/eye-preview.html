@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia do Olho</title>
+<style>html,body{margin:0;background:#0b0716}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: desenha o Olho do Abismo (o `drawEye` real) em vários ângulos
+// de olhar e fases, para comparar o desenho antes/depois de um ajuste sem pilotar até o chefe.
+//   /tools/eye-preview.html?sheet=angles   8 direções de olhar (fase 1, repouso)
+//   /tools/eye-preview.html?sheet=phases   3 fases × (repouso, aviso)
+import { drawEye } from "/src/render/creatures/eye.ts";
+import { EYE } from "/src/config/bosses/eye.ts";
+
+const sheet = new URLSearchParams(location.search).get("sheet") ?? "angles";
+const CELL = 240, ZOOM = 1.4, DPR = 2;
+const cols = sheet === "angles" ? 4 : 3;
+const rows = 2;
+const canvas = document.getElementById("c");
+canvas.width = cols * CELL * DPR;
+canvas.height = rows * CELL * DPR;
+canvas.style.width = cols * CELL + "px";
+canvas.style.height = rows * CELL + "px";
+const g = canvas.getContext("2d");
+g.scale(DPR, DPR);
+g.fillStyle = "#0b0716";
+g.fillRect(0, 0, cols * CELL, rows * CELL);
+
+function boss(phase, state) {
+  return { flashMs: 0, phase, state, attack: "fan", radius: EYE.radius, data: { pulse: 0.6, aimAng: 0 } };
+}
+function cell(i, phase, state, ang, label) {
+  const cx = (i % cols) * CELL + CELL / 2, cy = Math.floor(i / cols) * CELL + CELL / 2;
+  g.save();
+  g.beginPath(); g.rect((i % cols) * CELL, Math.floor(i / cols) * CELL, CELL, CELL); g.clip();
+  g.translate(cx, cy); g.scale(ZOOM, ZOOM);
+  // `attack: "fan"` desenharia o setor do aviso; o que se quer ver é só o olho
+  const b = boss(phase, state); b.attack = "none";
+  drawEye(g, b, 0, 0, ang, 0.5, { playerX: 0, worldW: 0, worldH: 0, top: 0 });
+  g.restore();
+  g.fillStyle = "#9a90b0"; g.font = "12px monospace";
+  g.fillText(label, (i % cols) * CELL + 8, Math.floor(i / cols) * CELL + 16);
+}
+
+if (sheet === "angles") {
+  for (let i = 0; i < 8; i++) cell(i, 0, "think", (i / 8) * Math.PI * 2, `olhar ${i * 45}°`);
+} else {
+  for (let p = 0; p < 3; p++) {
+    cell(p, p, "think", Math.PI * 0.2, `fase ${p + 1} · repouso`);
+    cell(3 + p, p, "telegraph", Math.PI * 0.2, `fase ${p + 1} · aviso`);
+  }
+}
+document.title = "pronto";
+</script>
+</body>
+</html>

@@ -45,7 +45,7 @@ export class WorldRenderer {
       const e = w.enemies.get(i);
       if (!e.dead) drawEnemy(g, e, alpha);
     }
-    for (const b of w.bosses) drawBoss(g, b, alpha, w.timeMs);
+    for (const b of w.bosses) drawBoss(g, b, alpha, w);
     drawProjectiles(g, w.projectiles, alpha);
     drawPlayer(g, w.player, alpha);
     g.restore();

@@ -7,12 +7,17 @@ import type { World } from "../world";
 import { BOSS_DEFS } from "./registry";
 import type { Aim, AttackDef, Boss, BossDef, BossKind } from "./types";
 
-// Runner genérico de chefe. A ORDEM do passo segue o `updateCrab` do protótipo, porque é
-// parte do feel:
-//   piscada → troca de fase → cronômetro → estado (pensar / aviso / execução) → teto de
-//   velocidade → arrasto → colisão → orientação → deslize na parede → contato.
+// Runner genérico de chefe. A ORDEM do passo segue os `updateCrab`, `updateJelly` e
+// `updateEye` do protótipo, porque é parte do feel:
+//   piscada → troca de fase → cronômetro → estado (pensar / aviso / execução) → âncora →
+//   teto de velocidade → arrasto → colisão → orientação → deslize na parede → contato.
 // Os ataques checam o próprio dano ANTES do movimento (como no protótipo); o contato de
-// encostar é checado DEPOIS.
+// encostar é checado DEPOIS. O movimento de "pensar" e a âncora dos ataques dependem do estado
+// no COMEÇO do passo: no passo em que um ataque é sorteado, o chefe ainda se move como pensando.
+//
+// Cronômetros em ms são descontados com o passo EXATO (`dtMs`), nunca com `dt · 1000`: os
+// dois podem diferir no último bit, e um intervalo múltiplo do passo (150 ms = 9 passos) cairia
+// para o outro lado do zero, adiantando ou atrasando uma salva em um passo.
 
 export function createBoss(w: World, kind: BossKind, x: number, y: number): Boss {
   const def = BOSS_DEFS[kind];
@@ -30,13 +35,14 @@ export function createBoss(w: World, kind: BossKind, x: number, y: number): Boss
   b.radius = s.radius;
   b.collR = s.collRadius;
   b.hp = b.maxHp = s.hp;
-  b.t = b.stateMs = def.phases[0]?.thinkMs ?? 0;
+  b.t = b.stateMs = def.firstThinkMs ?? def.phases[0]?.thinkMs ?? 0;
   b.ang = b.prevAng = 0;
   b.dirX = 1;
   b.dirY = 0;
   b.flashMs = 0;
   b.slideMs = 0;
   b.slideDir = 1;
+  def.init?.(b, w);
   w.bosses.push(b);
   return b;
 }
@@ -57,24 +63,33 @@ function stepBoss(b: Boss, w: World, dtMs: number): void {
   const p = w.player;
   if (b.flashMs > 0) b.flashMs -= dtMs;
 
-  enterPhaseIfDue(b, w, def);
+  // o Olho gasta o passo inteiro na troca de fase (o protótipo fazia `return`)
+  if (enterPhaseIfDue(b, w, def) && def.phaseChangeSkipsStep) return;
 
   b.t -= dtMs;
   aim.dx = p.x - b.x;
   aim.dy = p.y - b.y;
   aim.d = len(aim.dx, aim.dy) || 1;
   const aimAng = Math.atan2(aim.dy, aim.dx);
+  def.animate?.(b, dt);
 
+  const startedThinking = b.state === "think";
   if (b.state === "think") {
     def.think(b, w, dt, aim);
     if (b.t <= 0) startTelegraph(b, w, pickAttack(b, w, def), null);
   } else if (b.state === "telegraph") {
-    attackOf(def, b).onTelegraph?.(b, w, dt, aim);
+    attackOf(def, b).onTelegraph?.(b, w, dt, aim, dtMs);
     if (b.t <= 0) startExecute(b, w, def);
   } else {
     const atk = attackOf(def, b);
-    const endedEarly = atk.onExecute?.(b, w, dt, aim) === true;
+    const endedEarly = atk.onExecute?.(b, w, dt, aim, dtMs) === true;
     if (b.t <= 0 || endedEarly) finish(b, w, def);
+  }
+
+  // ancorado durante os ataques (a Água-viva e o Olho); o Caranguejo freia dentro de cada aviso
+  if (!startedThinking && def.attackBrake) {
+    b.vx *= 1 - def.attackBrake * dt;
+    b.vy *= 1 - def.attackBrake * dt;
   }
 
   const executing = b.state === "execute" ? attackOf(def, b) : null;
@@ -99,25 +114,30 @@ function stepBoss(b: Boss, w: World, dtMs: number): void {
     }
   }
 
-  if (!executing?.ownContact && !w.playerDead && len(p.x - b.x, p.y - b.y) < b.radius + p.radius) {
+  const contactR = b.radius * (def.contactRadiusScale ?? 1) + p.radius;
+  if (!executing?.ownContact && !w.playerDead && len(p.x - b.x, p.y - b.y) < contactR) {
     hurtPlayer(w, def.stats.contactDamage, b.x, b.y);
   }
 }
 
-/** Troca de fase quando a vida cruza o limiar. Vai direto para a fase mais funda devida. */
-function enterPhaseIfDue(b: Boss, w: World, def: BossDef): void {
+/**
+ * Troca de fase quando a vida cruza o limiar. Vai direto para a fase mais funda devida.
+ * Devolve true se trocou.
+ */
+function enterPhaseIfDue(b: Boss, w: World, def: BossDef): boolean {
   const frac = b.hp / b.maxHp;
   let target = b.phase;
   for (let i = b.phase + 1; i < def.phases.length; i++) {
     const ph = def.phases[i];
     if (ph && (ph.inclusive ? frac <= ph.hpBelow : frac < ph.hpBelow)) target = i;
   }
-  if (target === b.phase) return;
+  if (target === b.phase) return false;
   b.phase = target;
   b.state = "think";
   b.t = b.stateMs = def.phaseChangeThinkMs;
   w.events.push({ t: "bossPhase", x: b.x, y: b.y, boss: b.kind, phase: target });
   def.onPhaseEnter?.(b, w, target);
+  return true;
 }
 
 function pickAttack(b: Boss, w: World, def: BossDef): string {

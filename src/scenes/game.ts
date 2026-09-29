@@ -12,7 +12,9 @@ import { ENEMY_DEFS } from "../sim/enemies/registry";
 import { inDashInvuln, makeSpearTip, NO_INTENT, spearTip, type PlayerIntent } from "../sim/player";
 import { debugSkipToBoss, debugSkipWave } from "../sim/phase";
 import { createMapWorld, createWorld, stepWorld, type World } from "../sim/world";
+import type { BossKind } from "../config/kinds";
 import type { MapDef } from "../world/mapdef";
+import { mapOfBoss } from "../world/maps/registry";
 import { buildTestArena } from "../world/testArena";
 import { drawControlsHint, drawPlayerHud } from "../ui/hud";
 import { drawPhaseHud } from "../ui/phaseHud";
@@ -35,7 +37,7 @@ const CONTROLS_HINT =
 export class GameScene implements Scene {
   private world: World;
   private readonly fx = new Fx();
-  private readonly renderer: WorldRenderer;
+  private renderer: WorldRenderer;
   private readonly intent: PlayerIntent = { ...NO_INTENT };
 
   constructor(
@@ -43,7 +45,7 @@ export class GameScene implements Scene {
     private readonly scenes: SceneManager,
     private readonly debug: DebugFlags,
     private readonly seed: number,
-    private readonly mode: GameMode,
+    private mode: GameMode,
   ) {
     const palette: Palette = mode.kind === "map" ? mode.map.palette : PROTOTYPE_PALETTE;
     this.renderer = new WorldRenderer(palette);
@@ -72,7 +74,15 @@ export class GameScene implements Scene {
       if (input.wasPressed("debugGodMode")) w.godMode = !w.godMode;
       if (input.wasPressed("debugProjectiles")) fireDebugRing(w);
       if (input.wasPressed("debugNextWave")) debugSkipWave(w);
-      if (input.wasPressed("debugSkipToBoss") || input.wasPressed("debugCrab")) debugSkipToBoss(w);
+      if (input.wasPressed("debugSkipToBoss")) debugSkipToBoss(w);
+      // B/N/M escolhem o chefe: vão para o mapa dele e pulam as ondas
+      const picked: BossKind | null = input.wasPressed("debugCrab") ? "crab"
+        : input.wasPressed("debugJelly") ? "jelly"
+        : input.wasPressed("debugEye") ? "eye" : null;
+      if (picked && this.mode.kind !== "test") {
+        this.pickBoss(picked);
+        return;
+      }
       if (input.wasPressed("debugBossPhase")) forceNextBossPhase(w);
     }
 
@@ -118,6 +128,18 @@ export class GameScene implements Scene {
     this.fx.clear();
   }
 
+  /** Depuração: troca para o mapa do chefe (mesma semente) e vai direto à entrada dele. */
+  private pickBoss(boss: BossKind): void {
+    const map = mapOfBoss(boss);
+    if (this.mode.kind !== "map" || this.mode.map !== map) {
+      this.mode = { kind: "map", map };
+      this.renderer = new WorldRenderer(map.palette);
+      this.world = this.newWorld();
+      this.fx.clear();
+    }
+    debugSkipToBoss(this.world);
+  }
+
   debugLines(): string[] {
     const w = this.world;
     const p = w.player;
@@ -130,7 +152,8 @@ export class GameScene implements Scene {
       `bolhas ${this.fx.bubbles.pool.count}${w.godMode ? " · INVENCÍVEL" : ""}`,
       ...phaseDebugLines(w),
       "R reinicia · F2 invencível · F7 lento · F8 projéteis",
-      "F3 próxima onda · F4 chefe · F5 fase do chefe",
+      "F3 próxima onda · F4 chefe daqui · F5 fase do chefe",
+      "B caranguejo · N água-viva · M olho (trocam de mapa)",
     ];
   }
 

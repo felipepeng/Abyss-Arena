@@ -101,7 +101,8 @@ src/
     cheats.ts        pular onda, invocar chefe, invencível
 tests/               Vitest, espelhando src/sim e src/world
   fixtures/          rastros gravados do protótipo (paridade)
-tools/               scripts de desenvolvimento (gravar rastros do protótipo)
+tools/               scripts de desenvolvimento (gravar rastros do protótipo; `eye-preview.html`
+                     desenha o Olho em vários ângulos e fases, para ajustar a arte sem pilotar até o chefe)
 index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox (§7)
 public/              arquivos estáticos (favicon)
 prototipo/           o protótipo original, referência de paridade
@@ -207,8 +208,10 @@ interface Enemy extends Body {
 }
 ```
 
-- `enemies`, `projectiles`, `pickups` e `particles` são **pools** com remoção por swap-remove.
-  Nada de `filter` por passo (CONTEXTO §7.4, item 8). O passo não aloca por projétil
+- `enemies`, `projectiles`, `pickups` e `particles` são **pools**. Nada de `filter` por passo
+  (CONTEXTO §7.4, item 8). Inimigos e projéteis são percorridos em ordem de criação e compactados
+  no fim do passo (`Pool.removeWhere`, estável): quando dois projéteis acertam no mesmo passo,
+  o primeiro criado é o que empurra, como no protótipo. Pickups e partículas usam swap-remove. O passo não aloca por projétil
   (`tests/perf/allocation.test.ts` compara 0 e 300 projéteis).
 - **Objetos que vivem muitos passos nascem com os campos numéricos em `UNSET` (NaN)**, num literal
   que lista todos os campos, e são reaproveitados campo a campo (`resetBody`). Um campo que nasce
@@ -298,6 +301,18 @@ interface AttackDef {
   item 3).
 - Durante a entrada (GDD §2.2) o chefe existe mas fica inativo: não age, não ataca e a lança
   não o acerta.
+- **Acrescentados no M4** (Água-viva e Olho): `attackBrake` (ancorado durante os ataques; o
+  movimento de pensar e a âncora dependem do estado no COMEÇO do passo, como no protótipo),
+  `contactRadiusScale`, `phaseChangeSkipsStep` (o Olho gasta o passo na troca de fase),
+  `firstThinkMs` (o Olho espera 900 ms antes do primeiro ataque), `init` e `animate` (estado
+  só visual em `data`), `executeMs = Infinity` (execução até `onExecute` devolver true: salvas
+  e o raio), e os ganchos recebem `dtMs` exato para cronômetros em ms.
+- O raio da Água-viva usa dois subestágios explícitos (`beamStage`: esticar, varrer); a
+  varredura só desconta tempo quando está varrendo. `sim/geometry.ts` tem `rayLength` (sombra
+  da rocha) e `distInRay`.
+- Onde o protótipo sorteava por um motivo visual dentro da lógica (bolha na corrente da sucção,
+  bolha de cada bloco de pilar dissolvido), a simulação faz o mesmo sorteio e emite um evento:
+  mantém a sequência aleatória idêntica para a paridade.
 - Não existe mais `boss` global único: o mundo tem `bosses: Boss[]`, mesmo que a v1 use um só.
 - O raio da Água-viva deixa de usar `b.t += DTMS` (CONTEXTO §7.4, item 1): o `AttackDef` dele
   tem **dois subestágios explícitos** (`extend` e `sweep`) dentro de `onExecute`.
@@ -365,8 +380,15 @@ interface MapDef {
   luta, e vice-versa.
 - Os tipos de criatura (`EnemyKind`, `BossKind`) moram em `config/kinds.ts`, porque os
   mapas listam as ondas e `world/` não pode importar `sim/`.
-- Os pilares do Fosso são listas de índices de bloco, geradas a partir de `markers.pillars`.
-  Ficam **dentro do mundo** (`world.pillars`), não em globais (CONTEXTO §7.4, item 6).
+- Os pilares do Fosso são listas de índices de bloco, geradas a partir de `markers.pillars`
+  (centro e raios desenhados; a borda ganha `pillarEdgeNoise`, só em células `~`). Ficam
+  **dentro do mundo** (`world.pillars`), não em globais (CONTEXTO §7.4, item 6).
+  `sim/pillars.ts` os dissolve por fase.
+- As posições dos 26 pilares saíram do algoritmo do protótipo, rodado uma vez com semente fixa, e
+  estão gravadas no mapa: a cobertura é aprendível.
+- O Coral ganha galhos procedurais (`procedural.branches`) na faixa `~` de 1 bloco ao lado de cada
+  coluna.
+- Até existirem os menus (M6), o mapa vem da URL: `?map=rift|coral|abyss`.
 
 ### 6.4 Câmera
 
@@ -486,7 +508,7 @@ Ligado por `?debug` na URL ou `F1`:
 | `F6` | regenerar o mapa com semente nova |
 | `F7` | câmera lenta (0,25×) |
 | `F8` | anel de projéteis em volta do jogador (testa o pool, o estouro pela lança e a erosão) |
-| `B` | o mesmo que `F4` (o protótipo usava `B` para chamar o Caranguejo) |
+| `B` `N` `M` | escolher o chefe (Caranguejo, Água-viva, Olho): troca para o mapa dele, com a mesma semente, e vai direto à entrada do chefe (o protótipo usava `B` para chamar o Caranguejo) |
 | `R` | reiniciar com a mesma semente (fora da depuração, só depois de morrer, até existir o menu do M6) |
 
 A semente atual aparece no overlay, para que um bug de mapa possa ser reproduzido.
@@ -513,6 +535,10 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
   sorteavam) e usa um gerador congruencial com semente no `Math.random`; o teste põe o mesmo
   gerador na RNG do mundo. Assim o sorteio de ataques, o reroll e a investida dupla são
   comparados passo a passo, e não só com o sorteio fixo em 0,5.
+- **Paridade da Água-viva e do Olho:** mesma técnica. O gerador também desliga, para esses dois,
+  a rede "parado 1,5 s → recoloca" do protótipo (ela só os empurrava ~10 px, e o jogo novo não
+  a tem) e, na Água-viva, a erosão (lá todo projétil erodia e sorteava; aqui só os do Olho).
+  Compara-se também a contagem de projéteis vivos e o ângulo do raio.
 - **Harness de simulação:** roda N segundos com entradas roteirizadas (ex.: "jogador parado
   atrás de um pilar") e mede o dano recebido, como foi feito no protótipo para o Olho.
 - **Paridade com o protótipo:** `tools/prototype-trace.mjs` roda o **código original** de
