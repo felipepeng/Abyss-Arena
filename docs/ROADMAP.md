@@ -8,7 +8,7 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M5 — Inimigos exclusivos** (não iniciado). M3 e M4 implementados; falta jogá-los à mão.
+**Marco atual: M6 — Menus e fluxo de jogo** (não iniciado). M3, M4 e M5 implementados; falta jogá-los à mão.
 M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
 contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
@@ -170,21 +170,34 @@ ondas); o harness do "jogador atrás do pilar" no Olho dá números da mesma ord
 
 ---
 
-## ⬜ M5 — Inimigos exclusivos
+## 🟨 M5 — Inimigos exclusivos
 
-Pode começar em paralelo ao M4, depois que o M3 estiver pronto.
-
-- [ ] Ermitão (blindagem frontal com bloqueio e sem hit-stop).
-- [ ] Ouriço (estático, rajada de espinhos).
-- [ ] Medusinha (à distância, com linha de visão).
-- [ ] Enguia (toca, invulnerável escondida, bote telegrafado).
-- [ ] Vigia (leque de 3 tiros, com linha de visão).
-- [ ] Lampreia (enxame).
-- [ ] Composição final das ondas dos 3 mapas (GDD §3.2).
-- [ ] Novas cores de projétil e partículas (GDD §9.1).
+- [x] Ermitão (blindagem frontal com bloqueio e sem hit-stop).
+- [x] Ouriço (estático, rajada de espinhos).
+- [x] Medusinha (à distância, com linha de visão).
+- [x] Enguia (toca, invulnerável escondida, bote telegrafado).
+- [x] Vigia (leque de 3 tiros, com linha de visão).
+- [x] Lampreia (enxame).
+- [x] Composição final das ondas dos 3 mapas (GDD §3.2).
+- [x] Novas cores de projétil e partículas (GDD §9.1).
 
 **Pronto quando:** as três fases rodam com a composição de ondas do GDD; cada inimigo novo tem
 aviso visível no overlay de depuração (estado marcado como `telegraph`) antes de todo ataque.
+
+**Estado (2026-09-29):**
+- Os seis inimigos e as ondas do GDD §3.2 estão nos três mapas. `tests/sim/exclusive.test.ts`
+  cobre o bloqueio do Ermitão (sem dano nem hit-stop, e o dano pelas costas), a enguia
+  (invulnerável escondida, o bote e a volta), os espinhos (8, sumindo a 110 px), a linha de visão
+  (Medusinha e Vigia não atiram atrás de parede), o leque de 3 tiros, o dano de contato de cada
+  um, a Lampreia (sobrevive a uma estocada sem carga) e a composição das ondas.
+- A regra 2 é testada por criatura: cada ataque sai depois do aviso inteiro (450, 500, 600, 450,
+  500 e 300 ms). Os seis têm estado `telegraph` no overlay de depuração.
+- Ouriços e enguias ocupam posições fixas (`MapDef.markers.fixedEnemies` e `eelDens`), sem rocha
+  em cima em qualquer semente (o construtor protege o entorno delas do procedural).
+- O GDD ganhou a seção "Como o M5 preencheu o que este documento deixava aberto" e a correção do
+  contato da Enguia (13 / 7, pela regra do §4.4).
+- Falta jogar as três fases à mão, e o balanceamento das ondas (a onda 3 do Fosso tem 17
+  inimigos) fica para o M8.
 
 ---
 

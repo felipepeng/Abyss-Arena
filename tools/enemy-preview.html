@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia dos inimigos</title>
+<style>html,body{margin:0;background:#0b1420}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: desenha os inimigos exclusivos (o `drawEnemy` real) em
+// repouso, no aviso e no ataque, ampliados, para ajustar a arte sem jogar até eles.
+//   /tools/enemy-preview.html
+import { drawEnemy } from "/src/render/creatures/enemies.ts";
+import { ENEMY_DEFS } from "/src/sim/enemies/registry.ts";
+
+const KINDS = ["hermit", "urchin", "jellyling", "eel", "watcher", "lamprey"];
+// [estado, progresso do aviso] de cada coluna, por espécie
+const STATES = {
+  hermit: [["chase", 0], ["telegraph", 0.7], ["strike", 0.5]],
+  urchin: [["rest", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
+  jellyling: [["hover", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
+  eel: [["hidden", 0], ["telegraph", 0.7], ["strike", 0.5]],
+  watcher: [["keep", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
+  lamprey: [["chase", 0], ["telegraph", 0.7], ["bite", 0.5]],
+};
+const CELL = 220, ZOOM = 3.4, DPR = 2;
+const canvas = document.getElementById("c");
+canvas.width = 3 * CELL * DPR;
+canvas.height = KINDS.length * CELL * DPR;
+canvas.style.width = 3 * CELL + "px";
+canvas.style.height = KINDS.length * CELL + "px";
+const g = canvas.getContext("2d");
+g.scale(DPR, DPR);
+g.fillStyle = "#0b1420";
+g.fillRect(0, 0, 3 * CELL, KINDS.length * CELL);
+
+KINDS.forEach((kind, row) => {
+  STATES[kind].forEach(([state, k], col) => {
+    const s = ENEMY_DEFS[kind].stats;
+    const e = {
+      kind, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, radius: s.radius, collR: s.collRadius,
+      hp: s.hp, maxHp: s.hp, state, stateMs: 1000, t: 1000 * (1 - k), ang: 0, prevAng: 0, flashMs: 0,
+      dirX: 1, dirY: 0, noDrop: false, fromWave: false, dead: false,
+      data: { spin: 0.2, denX: -60, denY: 20 },
+    };
+    g.save();
+    g.beginPath();
+    g.rect(col * CELL, row * CELL, CELL, CELL);
+    g.clip();
+    g.translate(col * CELL + CELL / 2, row * CELL + CELL / 2);
+    g.scale(ZOOM, ZOOM);
+    drawEnemy(g, e, 1);
+    g.restore();
+    g.fillStyle = "#8aa0b8";
+    g.font = "12px monospace";
+    g.fillText(`${kind} · ${state}`, col * CELL + 8, row * CELL + 16);
+  });
+});
+document.title = "pronto";
+</script>
+</body>
+</html>

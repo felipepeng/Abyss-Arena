@@ -56,7 +56,7 @@ const LAYOUT = [
   "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP", // 39
 ];
 
-/** Posições dos ouriços, perto das formações. Os ouriços entram no M5. */
+/** Posições dos ouriços, perto das formações (GDD §7.1). */
 export const RIFT_URCHIN_SPOTS: readonly TilePt[] = [
   { x: 15, y: 12 },
   { x: 56, y: 12 },
@@ -76,7 +76,7 @@ export const RIFT: MapDef = {
       { x: 44, y: 8, w: 7, h: 3 }, // alto
       { x: 30, y: 27, w: 11, h: 3 }, // baixo
     ],
-    fixedEnemies: [],
+    fixedEnemies: RIFT_URCHIN_SPOTS.map((at) => ({ kind: "urchin" as const, at })),
     eelDens: [],
   },
   procedural: RIFT_PROCEDURAL,

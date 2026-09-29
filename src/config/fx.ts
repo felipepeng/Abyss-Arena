@@ -53,6 +53,14 @@ export const FX = {
   projectileBurst: { count: 4, spread: 3, speed: 90 },
   projectileHit: { count: 6, spread: 4, speed: 140 },
   rockEroded: { bubbles: { count: 3, color: "#7f9e94", spread: 7, speed: 120 } },
+  /**
+   * Bloqueio da blindagem do Ermitão (GDD §9.1): a fagulha (bolhas claras e rápidas) mais 4
+   * bolhas. Sem tremor: não é um acerto (regra 6).
+   */
+  spearBlocked: {
+    spark: { count: 6, color: "#fff4cf", spread: 2, speed: 320 },
+    bubbles: { count: 4, color: "#ffe9a8", spread: 4, speed: 130 },
+  },
   /** GDD §9.1. */
   pickup: { bubbles: { count: 8, color: "#7dffb0", spread: 6, speed: 120 } },
   /** Redemoinho no ponto onde um inimigo vai nascer (GDD §9.1). */

@@ -236,14 +236,19 @@ interface EnemyDef {
   stats: EnemyStats;                         // vida, raio, velocidades, dano, chance de drop
   initial: string;
   states: Record<string, EnemyState>;
-  onHit?(e: Enemy, hit: SpearHit, w: World): "damage" | "block";   // blindagem do Ermitão
-  draw: string;                              // chave do desenhador em render/creatures
+  // a lança acertou: "damage" (padrão), "block" (Ermitão de frente: sem dano nem hit-stop, com
+  // recuo do jogador e o evento spearBlocked) ou "ignore" (Enguia escondida: a lança passa)
+  onHit?(e: Enemy, w: World): "damage" | "block" | "ignore";
 }
+// EnemyStats.fullContact: encostar sempre dá o dano cheio (Ouriço, Medusinha, Vigia).
+// EnemyStats.placement: "zone" (padrão, zona de nascimento) ou "spot" (posição fixa do mapa:
+//   os ouriços do Leito e as tocas de enguia do Coral).
 interface EnemyState {
   enter?(e: Enemy, w: World): void;
   update(e: Enemy, w: World, dt: number): string | void;   // retorna o próximo estado
   telegraph?: boolean;                       // marca estado de aviso (debug + regra de ouro)
   harmful?: boolean;                         // true = dano cheio no contato; false = metade
+  noContact?: boolean;                       // sem dano de contato (a Enguia escondida)
 }
 ```
 
@@ -251,7 +256,8 @@ Um **runner genérico** (`sim/enemies/runner.ts`) cuida do que é comum a todos:
 movimento, colisão, contato com o jogador (dano cheio ou metade, conforme `harmful`), morte,
 drop. Os estados só decidem a aceleração, o alvo e as transições.
 
-**Percepção:** o runner expõe `canSee(e, w)` (distância + linha de visão pela grade). O peixe
+**Percepção:** `sim/enemies/perception.ts` expõe `canSee(e, w, range)` (distância + linha de
+visão pela grade, `hasLineOfSight` em `sim/geometry.ts`). O peixe
 continua usando só distância, como no protótipo, mas a Medusinha e a Vigia usam linha de visão,
 para que o coral e os pilares funcionem como cobertura contra elas.
 
@@ -360,7 +366,7 @@ interface MapDef {
   markers: {
     playerStart: Pt; bossSpawn: Pt;
     spawnZones: Rect[];          // zonas de nascimento das ondas
-    fixedEnemies: { kind: EnemyKind; at: Pt }[];   // Ouriços
+    fixedEnemies: { kind: EnemyKind; at: Pt }[];   // posições fixas dos estáticos das ondas (Ouriços)
     eelDens: Pt[];               // tocas de enguia
     pillars?: Rect[];            // Fosso: pilares nomeados para dissolver por fase
   };

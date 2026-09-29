@@ -94,10 +94,11 @@ export function stepEnemies(w: World, dtMs: number): void {
 
     // contato: dano cheio (e um pouco mais de alcance) durante o ataque; metade fora dele
     const dmg = def.stats.contactDamage;
-    if (dmg > 0 && !w.playerDead) {
+    if (dmg > 0 && !w.playerDead && !state.noContact) {
       const reach = e.radius + p.radius + (state.harmful ? COMBAT.harmfulContactReach : 0);
       if (len(p.x - e.x, p.y - e.y) < reach) {
-        hurtPlayer(w, state.harmful ? dmg : Math.ceil(dmg * COMBAT.idleContactScale), e.x, e.y);
+        const full = state.harmful || def.stats.fullContact;
+        hurtPlayer(w, full ? dmg : Math.ceil(dmg * COMBAT.idleContactScale), e.x, e.y);
       }
     }
   }

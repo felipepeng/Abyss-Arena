@@ -301,9 +301,14 @@ Mora em **tocas** marcadas no mapa. Ensina que **o terreno também ataca**.
 | Gatilho | jogador a menos de 160 px da toca |
 | Ataque | aviso de 450 ms (os olhos acendem e aparece uma linha de trajetória) → bote de 300 ms a 520 px/s → volta à toca em ~600 ms |
 | Janela | vulnerável durante o bote e a volta |
-| Dano (ataque / contato) | 13 / 6 |
+| Dano (ataque / contato) | 13 / 7 |
 
 Para a onda terminar, ela precisa morrer: o jogador tem que provocá-la e punir a volta.
+
+Implementação (M5): o bote alcança 520 px/s · 0,3 s = 156 px, do tamanho do gatilho (160). O aviso
+mira o jogador até o último passo e depois trava. Escondida e no aviso não fere nem é atingida;
+na volta, o contato dói a metade (`ceil(13/2)` = 7, e não 6 como este documento dizia: vale a
+regra do §4.4).
 
 #### Vigia — Fosso do Abismo · **atirador**
 Um olho menor, com pedúnculo. Ensina os **padrões de leque** do Olho.
@@ -331,6 +336,29 @@ para abrir caminho.
 > **Nota de balanceamento:** com 18 de vida, a lampreia sobrevive a uma estocada sem carga
 > (16) com 2. Isso é proposital: obriga duas estocadas rápidas ou uma carregada. Se ficar
 > tedioso, baixar para 16.
+
+#### Como o M5 preencheu o que este documento deixava aberto
+
+Os números abaixo não estavam no GDD e saíram de `src/config/enemies/`; todos são ajustáveis.
+
+- **Ermitão:** a pinça alcança 40 px do centro dele até a borda do jogador, dentro do mesmo arco
+  de ±60° da blindagem. Recuperação de 600 ms e espera de 500–1200 ms até o próximo aviso. Ele
+  continua girando a 2,2 rad/s durante o aviso; o golpe sai para onde ele estiver olhando.
+  Regra 3: 2,2 rad/s · 56 px (o alcance do aviso) = 123 px/s, abaixo dos 250.
+- **Ouriço:** o ciclo de 2400 ms é 1900 ms de descanso + 500 ms de aviso. O espinho tem raio 3
+  e some a 110 px da borda do ouriço. Cada ouriço nasce com um relógio e um ângulo sorteados, para
+  dois ouriços não dispararem juntos. Ele ocupa uma das posições fixas do mapa, livre e a
+  pelo menos 220 px do jogador.
+- **Medusinha e Vigia:** só começam o aviso com **linha de visão** (Medusinha até 420 px, Vigia
+  até 520 px). Sem visão, deslizam em volta do jogador até achar um ângulo, o que também os tira
+  de trás de um pilar. A Medusinha sobe e desce; a Vigia recua com 1,4× de força se o jogador
+  chegar mais perto que a faixa.
+- **Enguia:** nasce numa das tocas do mapa (livre e a 220 px ou mais do jogador). Depois de voltar,
+  espera 1400 ms antes de reagir de novo; ao nascer, espera 600 ms.
+- **Lampreia:** cada uma persegue um ponto deslocado até 46 px do jogador, que se fecha sobre ele
+  ao chegar perto; sem isso o enxame vira uma bola só (os inimigos não colidem entre si).
+- **Bloqueio do Ermitão:** a fagulha e as 4 bolhas saem na borda do escudo, do lado do jogador.
+  O jogador recua como num acerto, mas não há hit-stop nem tremor (regra 6).
 
 ---
 

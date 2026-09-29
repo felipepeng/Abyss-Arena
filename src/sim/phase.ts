@@ -27,6 +27,11 @@ export interface PhaseSetup {
   boss: BossKind;
   bossSpawn: { x: number; y: number };
   spawnZones: readonly PxRect[];
+  /**
+   * Posições fixas dos inimigos que não nascem numa zona (`placement: "spot"`): os ouriços
+   * do Leito e as tocas de enguia do Coral. Cada onda que os lista ocupa uma posição livre.
+   */
+  spots?: Readonly<Partial<Record<EnemyKind, readonly { x: number; y: number }[]>>>;
 }
 
 interface PendingSpawn {
@@ -149,21 +154,28 @@ function stepWaveSpawner(w: World, f: PhaseFlow, dtMs: number): void {
   f.spawnTimerMs -= dtMs;
   if (f.spawnTimerMs > 0 || f.queue.length === 0) return;
   if (aliveFromWave(w) + f.pending.length >= WAVES.maxAlive) return;
-  const kind = f.queue[0] as EnemyKind;
-  const spot = pickSpawnPoint(w, f, ENEMY_DEFS[kind].stats.collRadius);
-  // sem lugar agora: tenta de novo no próximo intervalo
   f.spawnTimerMs = WAVES.spawnIntervalMs;
-  if (!spot) return;
-  f.queue.shift();
-  f.pending.push({ kind, x: spot.x, y: spot.y, t: WAVES.spawnWarnMs });
-  w.events.push({ t: "spawnWarn", x: spot.x, y: spot.y });
+  // O primeiro da fila que tem onde nascer: um estático sem posição livre (o jogador está em
+  // cima de todas) não trava a onda. Sem lugar para ninguém agora, tenta no próximo intervalo.
+  for (let i = 0; i < f.queue.length; i++) {
+    const kind = f.queue[i] as EnemyKind;
+    const spot = pickSpawnPoint(w, f, kind);
+    if (!spot) continue;
+    f.queue.splice(i, 1);
+    f.pending.push({ kind, x: spot.x, y: spot.y, t: WAVES.spawnWarnMs });
+    w.events.push({ t: "spawnWarn", x: spot.x, y: spot.y });
+    return;
+  }
 }
 
 /**
  * Ponto de nascimento: numa zona do mapa a pelo menos 220 px do jogador. Só se nenhuma zona
  * servir, um ponto livre qualquer com a mesma distância (GDD §3.1).
  */
-function pickSpawnPoint(w: World, f: PhaseFlow, r: number): { x: number; y: number } | null {
+function pickSpawnPoint(w: World, f: PhaseFlow, kind: EnemyKind): { x: number; y: number } | null {
+  const stats = ENEMY_DEFS[kind].stats;
+  if (stats.placement === "spot") return pickSpot(w, f, kind, stats.collRadius);
+  const r = stats.collRadius;
   const p = w.player;
   const g = w.grid;
   const ok = (x: number, y: number) =>
@@ -181,6 +193,35 @@ function pickSpawnPoint(w: World, f: PhaseFlow, r: number): { x: number; y: numb
     if (ok(x, y)) return { x, y };
   }
   return null;
+}
+
+/**
+ * Posição fixa livre de um estático: sem outro da mesma espécie nela (vivo ou anunciado), sem
+ * rocha e a pelo menos 220 px do jogador. Sorteia entre as que servem.
+ */
+function pickSpot(w: World, f: PhaseFlow, kind: EnemyKind, r: number): { x: number; y: number } | null {
+  const spots = f.setup.spots?.[kind];
+  if (!spots) return null;
+  const p = w.player;
+  const usable: { x: number; y: number }[] = [];
+  for (const s of spots) {
+    if (overlapsRock(w.grid, s.x, s.y, r) || len(s.x - p.x, s.y - p.y) < WAVES.minDistFromPlayer) continue;
+    if (spotTaken(w, f, kind, s.x, s.y)) continue;
+    usable.push(s);
+  }
+  return usable.length === 0 ? null : (usable[w.rng.int(0, usable.length - 1)] as { x: number; y: number });
+}
+
+function spotTaken(w: World, f: PhaseFlow, kind: EnemyKind, x: number, y: number): boolean {
+  for (let i = 0; i < w.enemies.count; i++) {
+    const e = w.enemies.get(i);
+    // a enguia volta à toca: a posição fixa dela é a toca, não onde ela está agora
+    const ex = e.kind === "eel" ? e.data.denX ?? e.x : e.x;
+    const ey = e.kind === "eel" ? e.data.denY ?? e.y : e.y;
+    if (!e.dead && e.kind === kind && len(ex - x, ey - y) < WAVES.spotSize) return true;
+  }
+  for (const s of f.pending) if (s.kind === kind && len(s.x - x, s.y - y) < WAVES.spotSize) return true;
+  return false;
 }
 
 function startBossIntro(w: World, f: PhaseFlow): void {

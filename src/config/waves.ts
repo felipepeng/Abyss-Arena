@@ -22,4 +22,6 @@ export const WAVES = {
   minDistFromPlayer: 220,
   /** Tentativas de achar um ponto livre dentro de uma zona (e, na falta, no mapa). */
   placementTries: 60,
+  /** Duas posições fixas da mesma espécie a menos disto contam como a mesma. */
+  spotSize: 12,
 } as const;

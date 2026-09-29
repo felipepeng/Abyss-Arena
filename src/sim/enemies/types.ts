@@ -40,7 +40,17 @@ export interface EnemyStats {
   drag: number;
   contactDamage: number;
   dropChance: number;
+  /**
+   * Encostar sempre causa o dano cheio, em qualquer estado (Ouriço, Medusinha, Vigia: criaturas
+   * sem um "fora do ataque"). O alcance extra da investida continua só nos estados `harmful`.
+   */
+  fullContact?: boolean;
+  /** Onde a onda o põe: numa zona de nascimento (padrão) ou numa posição fixa do mapa. */
+  placement?: "zone" | "spot";
 }
+
+/** O que a blindagem de uma criatura faz com um acerto da lança. */
+export type HitResult = "damage" | "block" | "ignore";
 
 export interface EnemyState {
   /** Chamado ao entrar no estado; normalmente fixa `t` e a velocidade de um ataque. */
@@ -53,6 +63,8 @@ export interface EnemyState {
   readonly telegraph?: boolean;
   /** Estado de ataque: contato com dano cheio e alcance extra; fora dele, metade. */
   readonly harmful?: boolean;
+  /** Sem dano de contato neste estado (a enguia escondida na toca). */
+  readonly noContact?: boolean;
 }
 
 export interface EnemyDef {
@@ -64,6 +76,12 @@ export interface EnemyDef {
   init?(e: Enemy, w: World): void;
   /** Depois do teto de velocidade: orientação do corpo. */
   orient?(e: Enemy, dt: number): void;
+  /**
+   * A lança acertou. `damage`: dano, hit-stop e recuo (o padrão); `block`: sem dano nem
+   * hit-stop, com recuo do jogador (a blindagem do Ermitão); `ignore`: nada acontece e a
+   * lança passa (a enguia escondida).
+   */
+  onHit?(e: Enemy, w: World): HitResult;
   /** Ao zerar a vida. Devolve true para continuar vivo (o saco de pancada volta cheio). */
   onDeath?(e: Enemy, w: World): boolean;
 }

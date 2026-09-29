@@ -30,3 +30,19 @@ export function distInRay(
   const ey = py - (oy + dy * t);
   return Math.sqrt(ex * ex + ey * ey);
 }
+
+/**
+ * Há linha de visão entre os dois pontos? Amostra o segmento em passos de `step` px; qualquer
+ * bloco sólido no caminho corta a visão. É o que faz o coral e os pilares darem cobertura
+ * contra a Medusinha e a Vigia.
+ */
+export function hasLineOfSight(grid: Grid, x0: number, y0: number, x1: number, y1: number, step: number): boolean {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d === 0) return true;
+  for (let t = step; t < d; t += step) {
+    if (grid.isSolidAt(x0 + (dx / d) * t, y0 + (dy / d) * t)) return false;
+  }
+  return true;
+}

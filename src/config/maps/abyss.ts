@@ -24,12 +24,27 @@ export const ABYSS_PROCEDURAL = {
   pillarEdgeNoise: 0.15,
 };
 
-/**
- * Ondas (GDD §3.2). O GDD pede também vigias e lampreias, que entram no M5. Até lá, as ondas
- * têm só peixes e circuladores.
- */
+/** Ondas (GDD §3.2, 🟡). A onda 3 tem 17 inimigos: questão em aberto do GDD §13. */
 export const ABYSS_WAVES = [
-  { enemies: [{ kind: "fish", count: 4 }] },
-  { enemies: [{ kind: "circler", count: 3 }] },
-  { enemies: [{ kind: "fish", count: 3 }, { kind: "circler", count: 3 }] },
+  {
+    enemies: [
+      { kind: "fish", count: 4 },
+      { kind: "watcher", count: 2 },
+    ],
+  },
+  {
+    enemies: [
+      { kind: "circler", count: 3 },
+      { kind: "watcher", count: 2 },
+      { kind: "lamprey", count: 4 },
+    ],
+  },
+  {
+    enemies: [
+      { kind: "fish", count: 3 },
+      { kind: "circler", count: 3 },
+      { kind: "watcher", count: 3 },
+      { kind: "lamprey", count: 8 },
+    ],
+  },
 ] as const;

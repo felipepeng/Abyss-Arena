@@ -29,12 +29,22 @@ export const RIFT_PROCEDURAL = {
   blobs: { count: [3, 5] as const, rx: [1.2, 2.2] as const, ry: [1.0, 2.0] as const, edgeNoise: 0.18 },
 };
 
-/**
- * Ondas (GDD §3.2, 🟡). O GDD pede também ermitões (onda 2 e 3) e ouriços (onda 3); eles
- * entram no M5. Até lá, as ondas têm só peixes e circuladores.
- */
+/** Ondas (GDD §3.2, 🟡). Os ouriços ocupam posições fixas do mapa (RIFT_URCHIN_SPOTS). */
 export const RIFT_WAVES = [
   { enemies: [{ kind: "fish", count: 4 }] },
-  { enemies: [{ kind: "fish", count: 3 }, { kind: "circler", count: 2 }] },
-  { enemies: [{ kind: "fish", count: 3 }, { kind: "circler", count: 2 }] },
+  {
+    enemies: [
+      { kind: "fish", count: 3 },
+      { kind: "circler", count: 2 },
+      { kind: "hermit", count: 1 },
+    ],
+  },
+  {
+    enemies: [
+      { kind: "fish", count: 3 },
+      { kind: "circler", count: 2 },
+      { kind: "hermit", count: 2 },
+      { kind: "urchin", count: 2 },
+    ],
+  },
 ] as const;

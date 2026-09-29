@@ -55,6 +55,10 @@ export class Fx {
         b.emit(e.x - e.dirX * e.targetR, e.y - e.dirY * e.targetR, FX.spearHit.bubbles);
         this.shake.add(FX.spearHit.shake.ms, FX.spearHit.shake.amp);
         break;
+      case "spearBlocked":
+        b.emit(e.x, e.y, FX.spearBlocked.spark);
+        b.emit(e.x, e.y, FX.spearBlocked.bubbles);
+        break;
       case "enemyDied":
         b.emit(e.x, e.y, FX.enemyDied.bubbles, e.radius * FX.enemyDied.spreadScale);
         break;

@@ -5,6 +5,7 @@ import { SPEAR } from "../config/spear";
 import { resetBody, UNSET, type Body } from "./body";
 import { moveBody } from "./collision";
 import { hitBoss, hitEnemy } from "./combat";
+import { ENEMY_DEFS } from "./enemies/registry";
 import { accelerate, applyDrag, clampSpeed } from "./physics";
 import type { World } from "./world";
 
@@ -272,7 +273,21 @@ function spearHitCheck(w: World): void {
     const rr = e.radius + SPEAR.tipRadius;
     const hit = len(e.x - tip.x, e.y - tip.y) <= rr || len(e.x - midX, e.y - midY) <= rr;
     if (!hit) continue;
+    // a blindagem decide: a enguia escondida deixa a lança passar (e pode ser acertada se sair
+    // no meio do golpe); o ermitão bloqueia de frente
+    const result = ENEMY_DEFS[e.kind].onHit?.(e, w) ?? "damage";
+    if (result === "ignore") continue;
     sp.hitIds.add(e.id);
+    if (result === "block") {
+      // sem dano e SEM hit-stop (regra 6): só o recuo do jogador e a fagulha
+      const dx = p.x - e.x;
+      const dy = p.y - e.y;
+      const d = len(dx, dy) || 1;
+      w.events.push({ t: "spearBlocked", x: e.x + (dx / d) * e.radius, y: e.y + (dy / d) * e.radius });
+      p.vx = -tip.dirX * SPEAR.selfRecoil;
+      p.vy = -tip.dirY * SPEAR.selfRecoil;
+      continue;
+    }
     hitEnemy(w, e, sp.damage, tip.dirX, tip.dirY);
     // hit-stop e recuo só quando acerta criatura: errar não tem recompensa
     w.hitStopMs = SPEAR.hitStopMs;

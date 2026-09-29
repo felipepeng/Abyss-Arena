@@ -112,12 +112,16 @@ export function createWorld(seed: number, setup: WorldSetup): World {
 /** Mundo de uma fase de verdade: o mapa construído com a semente, com ondas e chefe. */
 export function createMapWorld(def: MapDef, seed: number): World {
   const map = buildMap(def, seed);
+  // posições fixas dos estáticos das ondas: as do mapa, mais as tocas de enguia
+  const spots: Partial<Record<EnemyKind, { x: number; y: number }[]>> = {};
+  for (const f of map.fixedEnemies) (spots[f.kind] ??= []).push({ x: f.x, y: f.y });
+  if (map.eelDens.length > 0) spots.eel = map.eelDens;
   return createWorld(seed, {
     grid: map.grid,
     playerStart: map.playerStart,
-    enemies: map.fixedEnemies,
+    enemies: [],
     spawner: false,
-    phase: { waves: def.waves, boss: def.boss, bossSpawn: map.bossSpawn, spawnZones: map.spawnZones },
+    phase: { waves: def.waves, boss: def.boss, bossSpawn: map.bossSpawn, spawnZones: map.spawnZones, spots },
     pillars: map.pillars,
   });
 }

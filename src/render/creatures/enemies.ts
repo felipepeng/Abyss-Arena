@@ -1,11 +1,10 @@
 import { TAU, angLerp, lerp } from "../../core/math";
 import type { Enemy, EnemyKind } from "../../sim/enemies/types";
+import { drawEel, drawHermit, drawJellyling, drawLamprey, drawUrchin, drawWatcher, type Drawer } from "./exclusive";
 
 // Inimigos comuns, desenhados como no protótipo (CONTEXTO §2.3 e §2.7). O aviso de cada
 // ataque é parte do desenho da criatura: halo pulsante e, no peixe, a linha de mira travada.
 // O progresso do aviso vem do estado (`t` e `stateMs`); o desenhador não lê o config.
-
-type Drawer = (g: CanvasRenderingContext2D, e: Enemy, flashing: boolean) => void;
 
 /** Progresso do estado atual, de 0 (acabou de entrar) a 1 (vai sair). */
 const progress = (e: Enemy): number => (e.stateMs > 0 ? 1 - Math.max(e.t, 0) / e.stateMs : 1);
@@ -110,6 +109,12 @@ const DRAWERS: Record<EnemyKind, { draw: Drawer; rotates: boolean }> = {
   circler: { draw: drawCircler, rotates: true },
   dummy: { draw: drawDummy, rotates: false },
   dummyBig: { draw: drawDummy, rotates: false },
+  hermit: { draw: drawHermit, rotates: true },
+  urchin: { draw: drawUrchin, rotates: false },
+  jellyling: { draw: drawJellyling, rotates: false },
+  eel: { draw: drawEel, rotates: false },
+  watcher: { draw: drawWatcher, rotates: true },
+  lamprey: { draw: drawLamprey, rotates: true },
 };
 
 export function drawEnemy(g: CanvasRenderingContext2D, e: Enemy, alpha: number): void {
@@ -133,8 +138,9 @@ export function drawEnemy(g: CanvasRenderingContext2D, e: Enemy, alpha: number):
   d.draw(g, e, e.flashMs > 0);
   g.restore();
 
-  // barrinha de vida
-  if (e.hp < e.maxHp) {
+  // barrinha de vida (a enguia escondida não pode ser atingida: sem barra)
+  const shielded = e.kind === "eel" && (e.state === "hidden" || e.state === "telegraph");
+  if (e.hp < e.maxHp && !shielded) {
     const w = e.radius * 2.4;
     g.fillStyle = "rgba(0,0,0,0.5)";
     g.fillRect(x - w / 2, y - e.radius - 12, w, 3);

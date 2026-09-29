@@ -25,12 +25,28 @@ export const CORAL_PROCEDURAL = {
   branches: { count: 22, length: [1, 2] as const },
 };
 
-/**
- * Ondas (GDD §3.2, 🟡). O GDD pede também medusinhas (todas as ondas) e enguias (ondas 2 e 3),
- * que entram no M5. Até lá, as ondas têm só peixes e circuladores.
- */
+/** Ondas (GDD §3.2, 🟡). As enguias nascem nas tocas marcadas no mapa. */
 export const CORAL_WAVES = [
-  { enemies: [{ kind: "fish", count: 3 }] },
-  { enemies: [{ kind: "fish", count: 2 }, { kind: "circler", count: 2 }] },
-  { enemies: [{ kind: "fish", count: 3 }, { kind: "circler", count: 3 }] },
+  {
+    enemies: [
+      { kind: "fish", count: 3 },
+      { kind: "jellyling", count: 2 },
+    ],
+  },
+  {
+    enemies: [
+      { kind: "fish", count: 2 },
+      { kind: "circler", count: 2 },
+      { kind: "jellyling", count: 2 },
+      { kind: "eel", count: 2 },
+    ],
+  },
+  {
+    enemies: [
+      { kind: "fish", count: 3 },
+      { kind: "circler", count: 3 },
+      { kind: "jellyling", count: 3 },
+      { kind: "eel", count: 3 },
+    ],
+  },
 ] as const;

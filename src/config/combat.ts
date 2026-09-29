@@ -21,3 +21,9 @@ export const PROJECTILES = {
   /** Rotação das farpas, rad/s (só visual, mas o ângulo inicial vem do sorteio da simulação). */
   spinRate: 8,
 } as const;
+
+/** Linha de visão entre uma criatura e o jogador (Medusinha, Vigia). */
+export const LINE_OF_SIGHT = {
+  /** Passo da amostragem do raio. Menor que meio bloco (10 px), para não pular uma parede fina. */
+  stepPx: 8,
+} as const;

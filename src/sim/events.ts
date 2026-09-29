@@ -7,6 +7,8 @@ import type { PhaseStateName } from "./phase";
 export type SimEvent =
   /** A lança acertou uma criatura. (x, y) é a posição do alvo; dir é a direção da estocada. */
   | { t: "spearHit"; x: number; y: number; dirX: number; dirY: number; targetR: number }
+  /** A blindagem de uma criatura barrou a lança: sem dano e sem hit-stop (regra 6). */
+  | { t: "spearBlocked"; x: number; y: number }
   | { t: "enemyDied"; x: number; y: number; radius: number; kind: EnemyKind }
   /** Um aviso começou (regra 2). Para som e depuração; o desenho lê o estado da criatura. */
   | { t: "telegraph"; x: number; y: number; source: EnemyKind | BossKind; attack: string }
