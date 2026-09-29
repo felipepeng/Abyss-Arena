@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Abissal — protótipo de combate (descartável)</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #05080f; color: #cfe6ff;
+    font-family: ui-monospace, Consolas, monospace;
+    overflow: hidden;
+  }
+  #wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  canvas { background: #061021; image-rendering: pixelated; cursor: crosshair; max-width: 100%; max-height: 100%; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv" width="960" height="540"></canvas></div>
+<script>
+"use strict";
+
+// =============================================================================
+// PROTÓTIPO DESCARTÁVEL — combate subaquático. Arte = formas geométricas.
+// Todos os números de ajuste vivem aqui. Tempos em ms, velocidades em px/s.
+// Suposições anotadas com "SUP:".
+// =============================================================================
+const CONFIG = {
+  view: { w: 960, h: 540 },
+  tile: 20,                       // SUP: grade de 20px, arena do tamanho da tela (sem câmera)
+  sim: { hz: 60 },                // passo fixo de 60 Hz
+  maxFrameMs: 100,                // SUP: limite de acúmulo para não "correr" após travadas
+
+  input: {
+    // atacar sem mouse: qualquer uma dessas teclas faz a mesma estocada do
+    // clique, inclusive segurar para carregar
+    attackKeys: ["KeyJ", "KeyK", "Enter", "NumpadEnter"],
+    dashKeys: ["Space", "ShiftLeft", "ShiftRight", "KeyL"],
+    // no modo teclado a mira segue a direção do nado (WASD/setas); mexer o
+    // mouse devolve a mira para o cursor
+    keyboardAimFollowsMovement: true,
+  },
+
+  player: {
+    radius: 9,
+    accel: 1500,                  // aceleração do nado
+    maxSpeed: 250,
+    drag: 3.4,                    // arrasto da água (quanto maior, menos inércia)
+    hp: 100,
+    dash: { speed: 640, durationMs: 140, cooldownMs: 1200 }, // sem invulnerabilidade
+    hurt: { invulnMs: 667, knockback: 330, blinkMs: 80 },
+  },
+
+  spear: {
+    anticipationMs: 70,
+    thrustMs: 120,
+    recoveryMs: 180,
+    reach: 52,                    // alcance base da ponta
+    reachChargeBonus: 40,         // alcance extra com carga cheia
+    chargeMaxMs: 600,
+    lungeSpeed: 320,              // impulso do jogador para a frente na estocada
+    lungeChargeBonus: 280,
+    damage: 16,
+    damageChargeBonus: 20,
+    tipRadius: 10,                // raio da hitbox da ponta
+    hitStopMs: 60,                // congela a simulação ao acertar
+    enemyKnockback: 430,
+    selfRecoil: 230,              // recuo do jogador só quando acerta
+  },
+
+  fish: {                         // (a) peixe que persegue e investe em linha reta
+    radius: 11, hp: 34, speed: 118, accel: 900, drag: 3.0,
+    sightR: 300,
+    telegraphMs: 400,             // brilha antes de avançar
+    chargeMs: 480, chargeSpeed: 430,
+    recoverMs: 520,
+    contactDamage: 9,
+    knockbackTakenMult: 1,
+  },
+
+  circler: {                      // (b) criatura que circula e ataca de perto
+    radius: 13, hp: 46, speed: 132, accel: 1000, drag: 3.2,
+    orbitR: 92, orbitSpeed: 1.9,  // rad/s ao redor do jogador
+    windupMs: 300, strikeMs: 220, strikeSpeed: 380, restMs: 700,
+    contactDamage: 11,
+  },
+
+  spawn: {
+    firstDelayMs: 1200,
+    intervalMs: 2600,             // SUP: ritmo constante, sem escalada de dificuldade
+    intervalMinMs: 1100,
+    intervalDecayMs: 90,          // acelera um pouco a cada spawn
+    maxAlive: 9,
+    minDistFromPlayer: 220,
+    pauseDuringBoss: true,        // com o boss vivo, só o chamado dele invoca peixes
+  },
+
+  boss: {                         // caranguejo gigante (tecla B)
+    radius: 38,                   // raio visual
+    collRadius: 23,               // raio de colisão: menor, para caber nos corredores
+    unstickAfterMs: 1500,         // parado tempo demais => recolocado no espaço livre mais próximo
+    hp: 420, speed: 90, accel: 700, drag: 2.6,
+    phase2At: 0.5,                // abaixo de 50% muda o padrão
+    thinkMs: 900,                 // pausa entre ataques (fase 1)
+    thinkMsP2: 520,
+    dash: { telegraphMs: 620, telegraphMsP2: 420, durationMs: 620, speed: 520, speedP2: 640, damage: 20 },
+    pinch: { telegraphMs: 520, telegraphMsP2: 360, activeMs: 180, radius: 118, radiusP2: 150, damage: 24 },
+    call: { telegraphMs: 700, count: 3 },
+    contactDamage: 12,
+    name: "CARANGUEJO ABISSAL", rageLabel: "ENFURECIDO",
+  },
+
+  jelly: {                        // água-viva colossal (tecla N) — o oposto do caranguejo:
+    name: "ÁGUA-VIVA COLOSSAL",   // flutua, mantém distância e ataca de longe
+    rageLabel: "INCANDESCENTE",
+    radius: 42,                   // raio visual (o sino)
+    collRadius: 25,
+    hp: 380, speed: 80, accel: 540, drag: 2.2,
+    hoverDist: 215,               // distância que tenta manter do jogador
+    hoverBias: -55,               // e um pouco acima dele
+    phase2At: 0.5,
+    thinkMs: 800, thinkMsP2: 440,
+    contactDamage: 10,
+    unstickAfterMs: 1500,
+    ring: {                       // anel de esporos em todas as direções
+      telegraphMs: 620, telegraphMsP2: 440,
+      count: 14, countP2: 20,
+      waves: 1, wavesP2: 3, waveGapMs: 190, waveTwist: 0.22,
+      speed: 195, damage: 11, lifeMs: 4200, r: 6,
+    },
+    beam: {                       // raio que varre a arena girando
+      telegraphMs: 700, telegraphMsP2: 520,
+      sweepMs: 1100, sweepMsP2: 1400,
+      // ATENÇÃO: a velocidade tangencial do raio à distância de flutuação é
+      // sweepSpeed * hoverDist. Acima de player.maxSpeed (250) fica impossível
+      // de desviar nadando — em 215px o teto é ~1,16 rad/s. Fica com margem.
+      sweepSpeed: 0.85, sweepSpeedP2: 1.0,  // rad/s (183 e 215 px/s de tangencial)
+      length: 640, halfWidth: 11, damage: 16,
+      innerGap: 48,               // colar na água-viva é seguro: o raio só começa aqui
+      blockedByRock: true,        // a rocha faz sombra — dá cobertura de verdade
+      oncePerSweep: true,         // uma varredura machuca no máximo uma vez
+      // a ponta do raio SAI da água-viva e viaja até você: sem isso ele nascia
+      // com o comprimento inteiro já sobre o jogador e acertava no primeiro frame.
+      // O tempo de reação que isso dá é distância / growSpeed (em 215px, ~350ms).
+      growSpeed: 620,             // px/s de avanço da ponta
+      rotateAfterExtend: true,    // só começa a girar depois de esticar
+      armDelayMs: 130,            // piso de reação: de perto a ponta chegaria quase junto
+    },
+    pull: {                       // sucção: puxa o jogador e cospe ferrões de perto
+      telegraphMs: 520, durationMs: 1100,
+      force: 640, radius: 330,
+      stingerEveryMs: 150, stingerSpeed: 250, stingerSpread: 0.5,
+      damage: 9, lifeMs: 2600, r: 5,
+    },
+  },
+
+  eye: {                          // OLHO DO ABISMO (tecla M) — boss bullet hell
+    name: "OLHO DO ABISMO", rageLabel: "DESPERTO",
+    radius: 46, collRadius: 30, hp: 560,
+    speed: 72, accel: 430, drag: 2.4,
+    keepDist: 300,                // tenta não deixar o jogador colar nele
+    driftR: 260,                  // vagueia dentro desse raio do centro da arena
+    phaseAt: [1, 0.66, 0.33],     // limiares de vida das 3 fases
+    thinkMs: [700, 520, 380],
+    contactDamage: 14,
+    unstickAfterMs: 1500,
+    arena: {                      // mapa próprio: grande e aberto
+      w: 1860, h: 1100,
+      pillars: 26,                // formações de rocha que servem de cobertura
+      // fração das pedras que sobra em cada fase: na 1 dá para usar cobertura,
+      // depois elas vão sumindo até a arena ficar totalmente aberta
+      pillarKeepByPhase: [1, 0.45, 0],
+    },
+    fan: {                        // leque mirado — a cobertura funciona contra este
+      telegraphMs: 520, telegraphMsP3: 380,
+      count: [5, 7, 9], spread: 0.85, volleys: [2, 2, 3], volleyGapMs: 170,
+      speed: 230, damage: 10, lifeMs: 5000, r: 6,
+    },
+    spiral: {                     // espiral contínua — cobertura ajuda em parte
+      telegraphMs: 600, durationMs: [2000, 2400, 2600],
+      arms: [1, 2, 3], emitEveryMs: 70, spinSpeed: 2.3,
+      speed: 200, damage: 10, lifeMs: 6000, r: 6,
+    },
+    siege: {                      // CERCO: nasce num anel em volta do jogador e fecha.
+      telegraphMs: 700,           // vem de todos os lados, então esconder não resolve
+      ringR: 430, count: [18, 24, 30],
+      speed: 215, damage: 12, lifeMs: 5000, r: 7,
+    },
+    seekers: {                    // perseguidores que ATRAVESSAM a rocha (fase 2+)
+      telegraphMs: 620,
+      count: [0, 5, 8], speed: 135, turnRate: 1.5,
+      damage: 11, lifeMs: 7000, r: 8,
+    },
+    rain: {                       // chuva vinda do alto da arena (fase 3)
+      telegraphMs: 700, durationMs: 2200, everyMs: 90,
+      spreadX: 620, speed: 260, damage: 10, lifeMs: 6000, r: 6,
+    },
+  },
+
+  projectiles: {
+    maxAlive: 900,                // bullet hell precisa de espaço
+    popBySpear: true,
+    // impactos desgastam a rocha: acampar atrás de uma pedra a destrói
+    erodeRock: true, erodeChance: 0.3,
+  },
+
+  camera: { lerp: 0.12, lookAhead: 60 },
+
+  particles: { bubbleLifeMs: 720, deathCount: 18, hitCount: 10 },
+};
+
+// =============================================================================
+// utilidades
+// =============================================================================
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const len = (x, y) => Math.hypot(x, y);
+function angLerp(a, b, t) { let d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * t; }
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const W = CONFIG.view.w, H = CONFIG.view.h;
+const TS = CONFIG.tile;
+const BORDER = 2 * TS;   // espessura da parede de borda da caverna, em px
+// O mundo pode ser maior que a visão (arena do Olho do Abismo). W/H são a
+// janela; world.w/world.h são a arena. A câmera acompanha o jogador.
+let world = { w: W, h: H };
+let COLS = Math.floor(W / TS), ROWS = Math.floor(H / TS);
+const cam = { x: 0, y: 0 };
+
+// =============================================================================
+// entrada
+// =============================================================================
+const keys = Object.create(null);
+const keyPressed = Object.create(null);   // flanco de subida, consumido no fim do passo
+// viewX/viewY são coordenadas de tela; x/y são as mesmas em coordenadas de
+// mundo, recalculadas a cada passo (a câmera se move mesmo com o mouse parado)
+const mouse = { x: W / 2, y: H / 2, viewX: W / 2, viewY: H / 2, down: false, pressed: false, released: false };
+
+addEventListener("keydown", (e) => {
+  if (!keys[e.code]) keyPressed[e.code] = true;   // ignora a repetição automática do teclado
+  keys[e.code] = true;
+  if (e.code === "Space" || e.code === "Enter" || e.code.startsWith("Arrow")) e.preventDefault();
+  if (e.code === "KeyR") resetGame();
+  if (e.code === "KeyB") spawnBoss();
+  if (e.code === "KeyN") spawnJelly();
+  if (e.code === "KeyM") spawnEye();
+});
+addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+const anyKey = (list) => list.some((c) => keys[c]);
+const anyKeyPressed = (list) => list.some((c) => keyPressed[c]);
+
+// entrada de ataque unificada: clique esquerdo ou tecla de ataque
+const attackHeld = () => mouse.down || anyKey(CONFIG.input.attackKeys);
+const attackPressed = () => mouse.pressed || anyKeyPressed(CONFIG.input.attackKeys);
+
+// direção do nado pelas teclas (usada no movimento e na mira do modo teclado)
+function moveDir() {
+  let x = 0, y = 0;
+  if (keys.KeyA || keys.ArrowLeft) x -= 1;
+  if (keys.KeyD || keys.ArrowRight) x += 1;
+  if (keys.KeyW || keys.ArrowUp) y -= 1;
+  if (keys.KeyS || keys.ArrowDown) y += 1;
+  const l = len(x, y);
+  return l > 0 ? { x: x / l, y: y / l, len: l } : { x: 0, y: 0, len: 0 };
+}
+
+function canvasPos(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+}
+cv.addEventListener("mousemove", (e) => {
+  const p = canvasPos(e);
+  if (p.x !== mouse.viewX || p.y !== mouse.viewY) mouse.moved = true;  // devolve a mira ao cursor
+  mouse.viewX = p.x; mouse.viewY = p.y;
+});
+cv.addEventListener("mousedown", (e) => { if (e.button === 0) { mouse.down = true; mouse.pressed = true; e.preventDefault(); } });
+addEventListener("mouseup", (e) => { if (e.button === 0) { mouse.down = false; mouse.released = true; } });
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// =============================================================================
+// arena: caverna fechada com chão irregular e formações de rocha
+// =============================================================================
+let grid = new Uint8Array(COLS * ROWS);
+let pillars = [], pillarsTotal = 0;   // grupos de tiles dos pilares da arena aberta
+const solid = (cx, cy) => (cx < 0 || cy < 0 || cx >= COLS || cy >= ROWS) ? 1 : grid[cy * COLS + cx];
+const solidAtPx = (x, y) => solid(Math.floor(x / TS), Math.floor(y / TS));
+
+// arena grande e aberta do Olho do Abismo: água limpa, só a borda e pilares
+// espalhados que servem de cobertura e vão sumindo a cada fase
+function buildOpenArena() {
+  const A = CONFIG.eye.arena;
+  world = { w: A.w, h: A.h };
+  COLS = Math.floor(world.w / TS); ROWS = Math.floor(world.h / TS);
+  grid = new Uint8Array(COLS * ROWS);
+  pillars = [];
+
+  for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++)
+    if (x < 2 || y < 2 || x >= COLS - 2 || y >= ROWS - 2) grid[y * COLS + x] = 1;
+
+  // pilares em anel, longe do centro (onde o boss nasce) e da borda
+  const cx = COLS / 2, cy = ROWS / 2;
+  let tentativas = 0;
+  while (pillars.length < A.pillars && tentativas++ < 900) {
+    const ang = rand(0, TAU), rr = rand(0.22, 0.92);
+    const px = Math.round(cx + Math.cos(ang) * rr * (COLS / 2 - 6));
+    const py = Math.round(cy + Math.sin(ang) * rr * (ROWS / 2 - 6));
+    if (px < 5 || py < 5 || px >= COLS - 5 || py >= ROWS - 5) continue;
+    if (Math.hypot(px - cx, py - cy) < 7) continue;         // centro livre
+    const rx = rand(1.3, 2.9), ry = rand(1.3, 2.9);
+    const grupo = [];
+    for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) {
+      if ((dx / rx) ** 2 + (dy / ry) ** 2 <= 1 + rand(-0.15, 0.15)) {
+        const tx = px + dx, ty = py + dy;
+        if (tx < 3 || ty < 3 || tx >= COLS - 3 || ty >= ROWS - 3) continue;
+        const idx = ty * COLS + tx;
+        if (!grid[idx]) { grid[idx] = 1; grupo.push(idx); }
+      }
+    }
+    if (grupo.length) pillars.push(grupo);
+  }
+  pillarsTotal = pillars.length;
+}
+
+// dissolve pilares até sobrar a fração pedida do total original
+function dissolvePillars(keepFrac) {
+  const alvo = Math.floor(pillarsTotal * keepFrac);
+  while (pillars.length > alvo) {
+    const grupo = pillars.splice(randi(0, pillars.length - 1), 1)[0];
+    for (const idx of grupo) {
+      grid[idx] = 0;
+      if (Math.random() < 0.45) {
+        const tx = (idx % COLS) * TS + TS / 2, ty = Math.floor(idx / COLS) * TS + TS / 2;
+        bubbles(tx, ty, 1, "#7f9e94", 7, 130);
+      }
+    }
+  }
+}
+
+function buildArena(kind) {
+  if (kind === "open") { buildOpenArena(); return; }
+  world = { w: W, h: H };
+  COLS = Math.floor(world.w / TS); ROWS = Math.floor(world.h / TS);
+  pillars = []; pillarsTotal = 0;
+  grid = new Uint8Array(COLS * ROWS);
+  const set = (cx, cy) => { if (cx >= 0 && cy >= 0 && cx < COLS && cy < ROWS) grid[cy * COLS + cx] = 1; };
+
+  // bordas (2 blocos de espessura para dar peso visual)
+  for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++)
+    if (x < 2 || y < 2 || x >= COLS - 2 || y >= ROWS - 2) set(x, y);
+
+  // chão irregular por soma de senos + ruído
+  const p1 = rand(0, TAU), p2 = rand(0, TAU);
+  for (let x = 0; x < COLS; x++) {
+    const h = 2.6 + 1.9 * Math.sin(x * 0.24 + p1) + 1.2 * Math.sin(x * 0.61 + p2) + rand(-0.6, 0.6);
+    const d = Math.max(2, Math.round(h));
+    for (let k = 0; k < d; k++) set(x, ROWS - 1 - k);
+  }
+  // teto irregular, mais raso
+  for (let x = 0; x < COLS; x++) {
+    const h = 1.6 + 1.1 * Math.sin(x * 0.19 - p2) + rand(-0.4, 0.4);
+    const d = Math.max(2, Math.round(h));
+    for (let k = 0; k < d; k++) set(x, k);
+  }
+
+  // formações de rocha: blobs elípticos espalhados (SUP: 5 a 7, longe do centro do spawn)
+  const blobs = randi(5, 7);
+  for (let i = 0; i < blobs; i++) {
+    const bx = randi(6, COLS - 7), by = randi(5, ROWS - 8);
+    if (Math.hypot(bx - COLS / 2, by - ROWS / 2) < 6) continue; // deixa o centro livre
+    const rx = rand(1.6, 4.2), ry = rand(1.4, 3.4);
+    for (let x = -5; x <= 5; x++) for (let y = -5; y <= 5; y++) {
+      const n = (x / rx) ** 2 + (y / ry) ** 2;
+      if (n <= 1 + rand(-0.18, 0.18)) set(bx + x, by + y);
+    }
+  }
+  // estalactites/estalagmites simples
+  for (let i = 0; i < 6; i++) {
+    const x = randi(4, COLS - 5), d = randi(2, 5), top = Math.random() < 0.5;
+    for (let k = 0; k < d; k++) set(x, top ? 2 + k : ROWS - 3 - k);
+  }
+}
+
+// abre espaço na rocha (último recurso para garantir lugar para o boss)
+function carveRoom(x, y, r) {
+  const cx = Math.floor(x / TS), cy = Math.floor(y / TS), cr = Math.ceil(r / TS) + 1;
+  for (let dx = -cr; dx <= cr; dx++) for (let dy = -cr; dy <= cr; dy++) {
+    const tx = cx + dx, ty = cy + dy;
+    // nunca remove a parede de borda, senão o corpo escapa da arena
+    if (tx < 2 || ty < 2 || tx >= COLS - 2 || ty >= ROWS - 2) continue;
+    if (dx * dx + dy * dy <= cr * cr) grid[ty * COLS + tx] = 0;
+  }
+}
+
+// devolve um ponto livre para um corpo de raio `clearance`, ou null se não achar
+function freeSpot(minDistFrom, minDist, clearance) {
+  const r = clearance || 14;
+  const lo = BORDER + r;
+  if (lo * 2 >= Math.min(world.w, world.h)) return null;
+  for (let t = 0; t < 400; t++) {
+    const x = rand(lo, world.w - lo), y = rand(lo, world.h - lo);
+    if (hitsRock(x, y, r)) continue;
+    if (minDistFrom && Math.hypot(x - minDistFrom.x, y - minDistFrom.y) < minDist) continue;
+    return { x, y };
+  }
+  return null;
+}
+
+// raio usado na colisão: menor que o visual quando o corpo é grande (boss),
+// senão um caranguejo de 38px de raio não passa pelos corredores da caverna
+const collRadius = (e) => (e.collR !== undefined ? e.collR : e.radius * 0.85);
+
+// colisão AABB contra a grade, eixo por eixo
+function moveAndCollide(e, dt) {
+  const r = collRadius(e);
+  // se o passo começou com o corpo enfiado na rocha, desencalha antes de mover
+  if (hitsRock(e.x, e.y, r)) unstick(e, r);
+
+  e.x += e.vx * dt;
+  if (hitsRock(e.x, e.y, r)) {
+    const step = e.vx > 0 ? -1 : 1;
+    // guarda de iterações: sem ela um corpo totalmente preso empurra para
+    // fora da grade (onde tudo é sólido) e o laço nunca termina
+    let guard = Math.ceil(Math.abs(e.vx) * dt) + TS + 2;
+    while (hitsRock(e.x, e.y, r) && guard-- > 0) e.x += step;
+    if (hitsRock(e.x, e.y, r)) unstick(e, r);
+    e.vx = 0; e.blockedX = true;
+  }
+  e.y += e.vy * dt;
+  if (hitsRock(e.x, e.y, r)) {
+    const step = e.vy > 0 ? -1 : 1;
+    let guard = Math.ceil(Math.abs(e.vy) * dt) + TS + 2;
+    while (hitsRock(e.x, e.y, r) && guard-- > 0) e.y += step;
+    if (hitsRock(e.x, e.y, r)) unstick(e, r);
+    e.vy = 0; e.blockedY = true;
+  }
+  // limita à área jogável (por dentro da parede de borda). Clampar ao canvas
+  // enfiava corpos grandes dentro da própria borda, de onde não saíam mais.
+  e.x = clamp(e.x, BORDER + r, world.w - BORDER - r);
+  e.y = clamp(e.y, BORDER + r, world.h - BORDER - r);
+}
+
+// procura em espiral o ponto livre mais próximo e recoloca o corpo lá
+function unstick(e, r) {
+  const lo = BORDER + r;
+  if (lo * 2 >= Math.min(world.w, world.h)) return false;
+  for (let ring = TS * 0.5; ring <= TS * 10; ring += TS * 0.5) {
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU + ring * 0.7;
+      const x = clamp(e.x + Math.cos(a) * ring, lo, world.w - lo);
+      const y = clamp(e.y + Math.sin(a) * ring, lo, world.h - lo);
+      if (!hitsRock(x, y, r)) {
+        e.x = x; e.y = y; e.vx *= 0.2; e.vy *= 0.2;
+        return true;
+      }
+    }
+  }
+  // nem isso resolveu: abre espaço na rocha em volta
+  carveRoom(e.x, e.y, r + 6);
+  return false;
+}
+
+// amostra a caixa do corpo com passo menor que um bloco — com apenas os cantos,
+// um bloco de 20px passava entre as amostras de um corpo grande
+function hitsRock(x, y, r) {
+  const n = Math.max(2, Math.ceil((r * 2) / (TS * 0.75)));
+  for (let i = 0; i <= n; i++) {
+    const px = x - r + (2 * r * i) / n;
+    for (let j = 0; j <= n; j++) {
+      if (solidAtPx(px, y - r + (2 * r * j) / n)) return true;
+    }
+  }
+  return false;
+}
+
+// =============================================================================
+// estado
+// =============================================================================
+let player, enemies, particles, projectiles, boss, game;
+
+function resetGame() {
+  buildArena("cave");
+  let s = freeSpot(null, 0, CONFIG.player.radius + 2);
+  if (!s) { s = { x: world.w / 2, y: world.h / 2 }; carveRoom(s.x, s.y, CONFIG.player.radius + 8); }
+  player = {
+    x: s.x, y: s.y, vx: 0, vy: 0, radius: CONFIG.player.radius,
+    aim: 0, aimMode: "mouse", keyAim: 0, hp: CONFIG.player.hp,
+    invulnMs: 0,
+    dashMs: 0, dashCdMs: 0, dashDirX: 1, dashDirY: 0,
+    spear: { state: "idle", t: 0, chargeMs: 0, charging: false, dirX: 1, dirY: 0, reach: CONFIG.spear.reach, dmg: CONFIG.spear.damage, hitIds: new Set(), didHit: false },
+  };
+  enemies = [];
+  particles = [];
+  projectiles = [];
+  boss = null;
+  game = {
+    kills: 0, hitStopMs: 0, timeMs: 0,
+    spawnTimerMs: CONFIG.spawn.firstDelayMs, spawnIntervalMs: CONFIG.spawn.intervalMs,
+    shakeMs: 0, shakeAmp: 0, dead: false, nextId: 1,
+  };
+  centerCamera();
+}
+
+// ---- câmera: segue o jogador e para nas bordas do mundo ---------------------
+function cameraTarget() {
+  // olha um pouco à frente da mira, para ver o que vem
+  const la = CONFIG.camera.lookAhead;
+  const tx = player.x + Math.cos(player.aim) * la - W / 2;
+  const ty = player.y + Math.sin(player.aim) * la - H / 2;
+  return { x: clamp(tx, 0, Math.max(0, world.w - W)), y: clamp(ty, 0, Math.max(0, world.h - H)) };
+}
+function centerCamera() { const t = cameraTarget(); cam.x = t.x; cam.y = t.y; }
+function updateCamera() {
+  const t = cameraTarget();
+  cam.x += (t.x - cam.x) * CONFIG.camera.lerp;
+  cam.y += (t.y - cam.y) * CONFIG.camera.lerp;
+}
+
+function shake(ms, amp) { game.shakeMs = Math.max(game.shakeMs, ms); game.shakeAmp = Math.max(game.shakeAmp, amp); }
+
+// =============================================================================
+// partículas (bolhas)
+// =============================================================================
+function bubbles(x, y, n, color, spread, speed) {
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), sp = rand(0.25, 1) * (speed || 150);
+    particles.push({
+      x: x + rand(-spread, spread), y: y + rand(-spread, spread),
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+      r: rand(1.5, 4.5), life: CONFIG.particles.bubbleLifeMs * rand(0.6, 1.3),
+      maxLife: CONFIG.particles.bubbleLifeMs, color: color || "#bfe9ff",
+    });
+  }
+}
+
+// =============================================================================
+// inimigos
+// =============================================================================
+function spawnFish(pos) {
+  const p = pos || freeSpot(player, CONFIG.spawn.minDistFromPlayer, CONFIG.fish.radius);
+  if (!p) return;                 // caverna sem lugar livre: não nasce nada neste tique
+  enemies.push({
+    id: game.nextId++, type: "fish", x: p.x, y: p.y, vx: 0, vy: 0,
+    radius: CONFIG.fish.radius, hp: CONFIG.fish.hp, maxHp: CONFIG.fish.hp,
+    state: "chase", t: 0, dirX: 1, dirY: 0, flash: 0, ang: 0, wob: rand(0, TAU),
+  });
+}
+function spawnCircler() {
+  const p = freeSpot(player, CONFIG.spawn.minDistFromPlayer, CONFIG.circler.radius);
+  if (!p) return;
+  enemies.push({
+    id: game.nextId++, type: "circler", x: p.x, y: p.y, vx: 0, vy: 0,
+    radius: CONFIG.circler.radius, hp: CONFIG.circler.hp, maxHp: CONFIG.circler.hp,
+    state: "orbit", t: 0, orbitAng: rand(0, TAU), orbitDir: Math.random() < 0.5 ? -1 : 1,
+    dirX: 1, dirY: 0, flash: 0, ang: 0,
+  });
+}
+// ---- Olho do Abismo: troca a arena por uma grande e aberta (tecla M)
+function spawnEye() {
+  if (boss) return;
+  const E = CONFIG.eye;
+  buildArena("open");                      // mapa próprio deste boss
+  enemies = []; projectiles = []; particles = [];
+  game.spawnTimerMs = game.spawnIntervalMs;
+
+  // jogador entra pela borda de baixo, o olho no centro
+  const centro = { x: world.w / 2, y: world.h / 2 };
+  let s = freeSpot(centro, 380, CONFIG.player.radius + 2) || freeSpot(null, 0, CONFIG.player.radius + 2);
+  if (!s) { s = { x: world.w / 2, y: world.h - BORDER - 60 }; carveRoom(s.x, s.y, 30); }
+  player.x = s.x; player.y = s.y; player.vx = player.vy = 0;
+  player.hp = CONFIG.player.hp; player.invulnMs = 0;
+  centerCamera();
+
+  if (hitsRock(centro.x, centro.y, E.collRadius)) carveRoom(centro.x, centro.y, E.collRadius + 12);
+  boss = {
+    id: game.nextId++, type: "boss", kind: "eye", name: E.name, rageLabel: E.rageLabel,
+    x: centro.x, y: centro.y, vx: 0, vy: 0,
+    radius: E.radius, collR: E.collRadius, hp: E.hp, maxHp: E.hp,
+    state: "think", t: 900, flash: 0, ang: 0, phase: 1, phase2: false, lastAttack: "",
+    pulse: 0, driftAng: rand(0, TAU), aimAng: 0, volley: 0, emitT: 0,
+    spiralAng: 0, spiralDir: 1, siegeX: 0, siegeY: 0,
+    lastX: centro.x, lastY: centro.y, stillMs: 0,
+  };
+  shake(420, 8);
+}
+
+// ---- água-viva colossal: boss de longo alcance (tecla N)
+function spawnJelly() {
+  if (boss) return;
+  const J = CONFIG.jelly, cr = J.collRadius;
+  let p = freeSpot(player, 260, cr) || freeSpot(player, 140, cr) || freeSpot(null, 0, cr);
+  if (!p) { p = { x: world.w / 2, y: world.h / 2 }; carveRoom(p.x, p.y, cr + 10); }
+  boss = {
+    id: game.nextId++, type: "boss", kind: "jelly", name: J.name, rageLabel: J.rageLabel,
+    x: p.x, y: p.y, vx: 0, vy: 0,
+    radius: J.radius, collR: cr, hp: J.hp, maxHp: J.hp,
+    state: "think", t: J.thinkMs, flash: 0, ang: 0, phase2: false, lastAttack: "",
+    pulse: 0, wave: 0, twist: 0, stingerT: 0,
+    beamAng: 0, beamDir: 1, beamDirLocked: false, beamLen: J.beam.length, beamHit: false,
+    beamTip: J.beam.innerGap, beamExtended: false,
+    lastX: p.x, lastY: p.y, stillMs: 0,
+  };
+  shake(240, 5);
+}
+
+function spawnBoss() {
+  if (boss) return;
+  const cr = CONFIG.boss.collRadius;
+  // tenta longe do jogador, depois perto, e por último abre espaço na rocha
+  let p = freeSpot(player, 260, cr) || freeSpot(player, 120, cr) || freeSpot(null, 0, cr);
+  if (!p) {
+    p = { x: world.w / 2, y: world.h / 2 };
+    carveRoom(p.x, p.y, cr + 10);
+  }
+  boss = {
+    id: game.nextId++, type: "boss", kind: "crab",
+    name: CONFIG.boss.name, rageLabel: CONFIG.boss.rageLabel,
+    x: p.x, y: p.y, vx: 0, vy: 0,
+    radius: CONFIG.boss.radius, collR: cr, hp: CONFIG.boss.hp, maxHp: CONFIG.boss.hp,
+    state: "think", t: CONFIG.boss.thinkMs, flash: 0, ang: 0,
+    dirX: 1, dirY: 0, phase2: false, clawT: 0, lastAttack: "",
+    lastX: p.x, lastY: p.y, stillMs: 0, slideDir: 0, slideMs: 0,
+  };
+  shake(260, 6);
+}
+
+function damageEnemy(e, dmg, kx, ky, kb) {
+  e.hp -= dmg;
+  e.flash = 120;
+  const m = 1 / Math.max(1, e.radius / 12); // inimigos maiores são empurrados menos
+  e.vx += kx * kb * m; e.vy += ky * kb * m;
+  bubbles(e.x - kx * e.radius, e.y - ky * e.radius, CONFIG.particles.hitCount, "#dff3ff", 6, 190);
+  if (e.hp <= 0) {
+    bubbles(e.x, e.y, CONFIG.particles.deathCount, e.type === "boss" ? "#ffd2b0" : "#9fe0ff", e.radius * 0.6, 260);
+    if (e === boss) { boss = null; game.kills++; shake(420, 9); }
+    else { e.dead = true; game.kills++; }
+  }
+}
+
+// =============================================================================
+// projéteis (usados pela água-viva)
+// =============================================================================
+function fireProjectile(x, y, ang, speed, damage, r, lifeMs, color, opts) {
+  if (projectiles.length >= CONFIG.projectiles.maxAlive) return;
+  projectiles.push({
+    x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
+    r, damage, life: lifeMs, spin: rand(0, TAU), color, speed,
+    // opts: { ignoresRock, turnRate }. Os perseguidores atravessam a rocha de
+    // propósito: é o que impede acampar atrás de uma pedra e zerar o dano.
+    ignoresRock: !!(opts && opts.ignoresRock),
+    turnRate: (opts && opts.turnRate) || 0,
+  });
+}
+
+// impacto desgasta a rocha: usar a mesma pedra de escudo acaba consumindo ela.
+// Nunca toca a parede de borda, senão a arena deixa de ser fechada.
+function erodeAt(x, y) {
+  if (!CONFIG.projectiles.erodeRock || Math.random() > CONFIG.projectiles.erodeChance) return;
+  const tx = Math.floor(x / TS), ty = Math.floor(y / TS);
+  if (tx < 3 || ty < 3 || tx >= COLS - 3 || ty >= ROWS - 3) return;
+  const idx = ty * COLS + tx;
+  if (!grid[idx]) return;
+  grid[idx] = 0;
+  bubbles(tx * TS + TS / 2, ty * TS + TS / 2, 3, "#7f9e94", 7, 120);
+}
+
+function updateProjectiles() {
+  for (const p of projectiles) {
+    p.life -= DTMS;
+    if (p.turnRate) {
+      // curva na direção do jogador com taxa de giro limitada — dá para driblar
+      const alvo = Math.atan2(player.y - p.y, player.x - p.x);
+      const novo = angLerp(Math.atan2(p.vy, p.vx), alvo, clamp(p.turnRate * DT, 0, 1));
+      p.vx = Math.cos(novo) * p.speed; p.vy = Math.sin(novo) * p.speed;
+    }
+    p.x += p.vx * DT; p.y += p.vy * DT;
+    p.spin += DT * 8;
+    if (p.life <= 0) { p.gone = true; continue; }
+    if (p.x < 0 || p.y < 0 || p.x > world.w || p.y > world.h) {
+      bubbles(p.x, p.y, 4, p.color, 3, 90);
+      p.gone = true; continue;
+    }
+    if (!p.ignoresRock && solidAtPx(p.x, p.y)) {
+      bubbles(p.x, p.y, 4, p.color, 3, 90);
+      erodeAt(p.x, p.y);
+      p.gone = true; continue;
+    }
+    if (player.invulnMs <= 0 && !game.dead &&
+        Math.hypot(p.x - player.x, p.y - player.y) < p.r + player.radius) {
+      hurtPlayer(p.damage, p.x, p.y);
+      bubbles(p.x, p.y, 6, p.color, 4, 140);
+      p.gone = true;
+    }
+  }
+  projectiles = projectiles.filter((p) => !p.gone);
+}
+
+// comprimento útil de um raio até bater na rocha (é o que dá cobertura ao jogador)
+function rayLength(ox, oy, ang, maxLen) {
+  if (!CONFIG.jelly.beam.blockedByRock) return maxLen;
+  const dx = Math.cos(ang), dy = Math.sin(ang), stepLen = TS * 0.4;
+  for (let t = stepLen; t <= maxLen; t += stepLen) {
+    if (solidAtPx(ox + dx * t, oy + dy * t)) return t - stepLen;
+  }
+  return maxLen;
+}
+
+// o ponto (px,py) está dentro do raio? Devolve a distância perpendicular, ou
+// Infinity se estiver antes do vão interno, depois da ponta ou atrás da origem.
+function distInRay(ox, oy, ang, innerGap, maxLen, px, py) {
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const t = (px - ox) * dx + (py - oy) * dy;
+  if (t < innerGap || t > maxLen) return Infinity;
+  return Math.hypot(px - (ox + dx * t), py - (oy + dy * t));
+}
+
+function hurtPlayer(dmg, fromX, fromY) {
+  if (player.invulnMs > 0 || game.dead) return;
+  player.hp -= dmg;
+  player.invulnMs = CONFIG.player.hurt.invulnMs;
+  let dx = player.x - fromX, dy = player.y - fromY, d = len(dx, dy) || 1;
+  player.vx += (dx / d) * CONFIG.player.hurt.knockback;
+  player.vy += (dy / d) * CONFIG.player.hurt.knockback;
+  bubbles(player.x, player.y, 14, "#ff9aa6", 8, 220);
+  shake(180, 5);
+  if (player.hp <= 0) { player.hp = 0; game.dead = true; shake(500, 8); }
+}
+
+// =============================================================================
+// simulação (passo fixo)
+// =============================================================================
+const DT = 1 / CONFIG.sim.hz;
+const DTMS = 1000 / CONFIG.sim.hz;
+
+function step() {
+  game.timeMs += DTMS;
+  mouse.x = mouse.viewX + cam.x; mouse.y = mouse.viewY + cam.y;
+  if (game.shakeMs > 0) { game.shakeMs -= DTMS; if (game.shakeMs <= 0) game.shakeAmp = 0; }
+
+  updateParticles();
+  if (!game.dead) updatePlayer();
+  updateEnemies();
+  if (boss) updateBoss();
+  updateProjectiles();
+  updateSpawner();
+
+  updateCamera();
+  enemies = enemies.filter((e) => !e.dead);
+  // consome flancos de entrada só no fim do passo
+  mouse.pressed = false; mouse.released = false;
+  for (const c in keyPressed) keyPressed[c] = false;
+}
+
+function updateParticles() {
+  for (const p of particles) {
+    p.life -= DTMS;
+    p.x += p.vx * DT; p.y += p.vy * DT;
+    p.vy -= 120 * DT;                 // bolhas sobem
+    p.vx *= 1 - 2.2 * DT; p.vy *= 1 - 1.4 * DT;
+  }
+  particles = particles.filter((p) => p.life > 0);
+}
+
+function updatePlayer() {
+  const P = CONFIG.player, S = CONFIG.spear, sp = player.spear;
+
+  const mv = moveDir();
+
+  // ---- mira: cursor por padrão; no modo teclado segue a direção do nado
+  if (mouse.moved) { player.aimMode = "mouse"; mouse.moved = false; }
+  if (player.aimMode === "keys") {
+    if (CONFIG.input.keyboardAimFollowsMovement && mv.len > 0) player.keyAim = Math.atan2(mv.y, mv.x);
+    player.aim = player.keyAim;
+  } else {
+    player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+  }
+
+  if (player.invulnMs > 0) player.invulnMs -= DTMS;
+  if (player.dashCdMs > 0) player.dashCdMs -= DTMS;
+
+  // ---- dash, na direção da mira; cancela a recuperação da lança
+  if (anyKey(CONFIG.input.dashKeys) && player.dashCdMs <= 0 && player.dashMs <= 0) {
+    player.dashMs = P.dash.durationMs;
+    player.dashCdMs = P.dash.cooldownMs;
+    player.dashDirX = Math.cos(player.aim); player.dashDirY = Math.sin(player.aim);
+    player.vx = player.dashDirX * P.dash.speed; player.vy = player.dashDirY * P.dash.speed;
+    if (sp.state === "recovery") { sp.state = "idle"; sp.t = 0; }
+    bubbles(player.x, player.y, 10, "#cfeaff", 6, 140);
+  }
+
+  // ---- lança (clique esquerdo ou tecla de ataque; segurar carrega nos dois casos)
+  if (attackPressed() && sp.state === "idle") {
+    // ataque pelo teclado entra no modo de mira por WASD; com o mouse, volta ao cursor
+    if (!mouse.pressed) {
+      player.aimMode = "keys";
+      player.keyAim = mv.len > 0 ? Math.atan2(mv.y, mv.x) : player.aim;
+      player.aim = player.keyAim;
+    } else {
+      player.aimMode = "mouse";
+    }
+    sp.state = "anticipation"; sp.t = S.anticipationMs; sp.chargeMs = 0; sp.charging = true;
+    sp.dirX = Math.cos(player.aim); sp.dirY = Math.sin(player.aim);
+  }
+  if (!attackHeld()) sp.charging = false;
+
+  if (sp.state === "anticipation") {
+    if (sp.charging) sp.chargeMs = Math.min(S.chargeMaxMs, sp.chargeMs + DTMS);
+    sp.dirX = Math.cos(player.aim); sp.dirY = Math.sin(player.aim); // ainda ajusta a direção
+    sp.t -= DTMS;
+    const readyToRelease = sp.t <= 0 && (!sp.charging || sp.chargeMs >= S.chargeMaxMs);
+    if (readyToRelease) startThrust();
+    // segurando após a antecipação: continua carregando (estado visual ainda "anticipation")
+    if (sp.t < 0) sp.t = 0;
+  } else if (sp.state === "thrust") {
+    sp.t -= DTMS;
+    if (sp.t <= 0) { sp.state = "recovery"; sp.t = S.recoveryMs; }
+    else spearHitCheck();
+  } else if (sp.state === "recovery") {
+    sp.t -= DTMS;
+    if (sp.t <= 0) { sp.state = "idle"; sp.t = 0; }
+  }
+
+  function startThrust() {
+    const k = sp.chargeMs / S.chargeMaxMs;
+    sp.state = "thrust"; sp.t = S.thrustMs;
+    sp.reach = S.reach + S.reachChargeBonus * k;
+    sp.dmg = S.damage + S.damageChargeBonus * k;
+    sp.hitIds.clear(); sp.didHit = false;
+    const lunge = S.lungeSpeed + S.lungeChargeBonus * k;
+    player.vx += sp.dirX * lunge; player.vy += sp.dirY * lunge;
+    bubbles(player.x + sp.dirX * 16, player.y + sp.dirY * 16, 6, "#e6f6ff", 4, 120);
+  }
+
+  // ---- nado com aceleração, inércia e arrasto
+  const controlling = player.dashMs <= 0 && sp.state !== "thrust";
+  if (mv.len > 0 && controlling) {
+    player.vx += mv.x * P.accel * DT;
+    player.vy += mv.y * P.accel * DT;
+  }
+
+  if (player.dashMs > 0) player.dashMs -= DTMS;
+
+  // arrasto da água (menor durante dash/estocada para o impulso sentir peso)
+  const drag = (player.dashMs > 0 || sp.state === "thrust") ? P.drag * 0.35 : P.drag;
+  const f = 1 / (1 + drag * DT);
+  player.vx *= f; player.vy *= f;
+
+  // limite de velocidade só para o nado livre
+  if (player.dashMs <= 0 && sp.state !== "thrust") {
+    const s = len(player.vx, player.vy);
+    if (s > P.maxSpeed) { player.vx = (player.vx / s) * P.maxSpeed; player.vy = (player.vy / s) * P.maxSpeed; }
+  }
+
+  player.blockedX = player.blockedY = false;
+  moveAndCollide(player, DT);
+}
+
+function spearTip() {
+  const sp = player.spear;
+  const S = CONFIG.spear;
+  let k;
+  if (sp.state === "anticipation") k = -0.22;                       // recolhe antes
+  else if (sp.state === "thrust") k = 1 - (sp.t / S.thrustMs);      // 0 -> 1
+  else if (sp.state === "recovery") k = 0.55 * (sp.t / S.recoveryMs);
+  else k = 0.12;
+  const dx = sp.state === "idle" ? Math.cos(player.aim) : sp.dirX;
+  const dy = sp.state === "idle" ? Math.sin(player.aim) : sp.dirY;
+  const reach = sp.state === "idle" ? S.reach : sp.reach;
+  const ease = k < 0 ? k : 1 - (1 - k) * (1 - k);                   // saída rápida
+  return { x: player.x + dx * reach * ease, y: player.y + dy * reach * ease, dx, dy, k: ease, reach };
+}
+
+function spearHitCheck() {
+  const sp = player.spear, S = CONFIG.spear;
+  const tip = spearTip();
+  const targets = boss ? enemies.concat([boss]) : enemies;
+  for (const e of targets) {
+    if (sp.hitIds.has(e.id)) continue;
+    // testa a ponta e um ponto intermediário (evita atravessar inimigo pequeno)
+    const mx = player.x + tip.dx * tip.reach * Math.max(0, tip.k - 0.35);
+    const my = player.y + tip.dy * tip.reach * Math.max(0, tip.k - 0.35);
+    const rr = e.radius + S.tipRadius;
+    const hit = Math.hypot(e.x - tip.x, e.y - tip.y) <= rr || Math.hypot(e.x - mx, e.y - my) <= rr;
+    if (!hit) continue;
+    sp.hitIds.add(e.id);
+    sp.didHit = true;
+    damageEnemy(e, sp.dmg, tip.dx, tip.dy, S.enemyKnockback);
+    // hit-stop + recuo do jogador (só ao acertar)
+    game.hitStopMs = S.hitStopMs;
+    player.vx = -tip.dx * S.selfRecoil; player.vy = -tip.dy * S.selfRecoil;
+    shake(140, 4);
+  }
+
+  // a estocada também estoura projéteis (sem hit-stop, senão o anel de esporos
+  // engasgaria a simulação a cada bolinha)
+  if (CONFIG.projectiles.popBySpear) {
+    for (const pr of projectiles) {
+      if (pr.gone) continue;
+      if (Math.hypot(pr.x - tip.x, pr.y - tip.y) <= pr.r + S.tipRadius) {
+        pr.gone = true;
+        bubbles(pr.x, pr.y, 5, pr.color, 4, 150);
+      }
+    }
+  }
+}
+
+function updateEnemies() {
+  for (const e of enemies) {
+    if (e.flash > 0) e.flash -= DTMS;
+    e.t -= DTMS;
+    const dx = player.x - e.x, dy = player.y - e.y, d = len(dx, dy) || 1;
+    const C = e.type === "fish" ? CONFIG.fish : CONFIG.circler;
+
+    if (e.type === "fish") {
+      if (e.state === "chase") {
+        if (d < CONFIG.fish.sightR) {
+          e.vx += (dx / d) * C.accel * DT; e.vy += (dy / d) * C.accel * DT;
+          e.wob += DT * 6;
+          e.vx += -(dy / d) * Math.sin(e.wob) * 60 * DT * 10; // serpenteia
+          e.vy += (dx / d) * Math.sin(e.wob) * 60 * DT * 10;
+        }
+        if (d < 200 && e.t <= 0) { e.state = "telegraph"; e.t = C.telegraphMs; }
+      } else if (e.state === "telegraph") {
+        e.vx *= 1 - 4 * DT; e.vy *= 1 - 4 * DT;
+        e.dirX = dx / d; e.dirY = dy / d;                    // trava a direção no fim
+        if (e.t <= 0) {
+          e.state = "charge"; e.t = C.chargeMs;
+          e.vx = e.dirX * C.chargeSpeed; e.vy = e.dirY * C.chargeSpeed;
+          bubbles(e.x, e.y, 8, "#ffd48a", 5, 160);
+        }
+      } else if (e.state === "charge") {
+        if (e.t <= 0 || e.blockedX || e.blockedY) { e.state = "recover"; e.t = C.recoverMs; }
+      } else if (e.state === "recover") {
+        e.vx *= 1 - 3 * DT; e.vy *= 1 - 3 * DT;
+        if (e.t <= 0) { e.state = "chase"; e.t = rand(300, 900); }
+      }
+      const sp = len(e.vx, e.vy), cap = e.state === "charge" ? C.chargeSpeed : C.speed;
+      if (sp > cap) { e.vx = (e.vx / sp) * cap; e.vy = (e.vy / sp) * cap; }
+      e.ang = angLerp(e.ang, Math.atan2(e.vy, e.vx), 0.25);
+    } else {
+      // circler: orbita e dá estocadas curtas
+      if (e.state === "orbit") {
+        e.orbitAng += C.orbitSpeed * e.orbitDir * DT;
+        const tx = player.x + Math.cos(e.orbitAng) * C.orbitR;
+        const ty = player.y + Math.sin(e.orbitAng) * C.orbitR;
+        const ox = tx - e.x, oy = ty - e.y, od = len(ox, oy) || 1;
+        e.vx += (ox / od) * C.accel * DT; e.vy += (oy / od) * C.accel * DT;
+        if (e.t <= 0 && d < C.orbitR * 1.5) { e.state = "windup"; e.t = C.windupMs; }
+      } else if (e.state === "windup") {
+        e.vx *= 1 - 5 * DT; e.vy *= 1 - 5 * DT;
+        e.dirX = dx / d; e.dirY = dy / d;
+        if (e.t <= 0) {
+          e.state = "strike"; e.t = C.strikeMs;
+          e.vx = e.dirX * C.strikeSpeed; e.vy = e.dirY * C.strikeSpeed;
+        }
+      } else if (e.state === "strike") {
+        if (e.t <= 0) { e.state = "rest"; e.t = C.restMs; }
+      } else if (e.state === "rest") {
+        e.vx *= 1 - 3 * DT; e.vy *= 1 - 3 * DT;
+        if (e.t <= 0) { e.state = "orbit"; e.t = rand(400, 1100); e.orbitAng = Math.atan2(e.y - player.y, e.x - player.x); }
+      }
+      const sp2 = len(e.vx, e.vy), cap2 = e.state === "strike" ? C.strikeSpeed : C.speed;
+      if (sp2 > cap2) { e.vx = (e.vx / sp2) * cap2; e.vy = (e.vy / sp2) * cap2; }
+      e.ang += DT * 4;
+    }
+
+    const f = 1 / (1 + C.drag * DT);
+    e.vx *= f; e.vy *= f;
+    e.blockedX = e.blockedY = false;
+    moveAndCollide(e, DT);
+
+    // dano por contato
+    const dmgOn = e.type === "fish" ? (e.state === "charge") : (e.state === "strike");
+    const contactR = e.radius + player.radius;
+    if (Math.hypot(player.x - e.x, player.y - e.y) < contactR + (dmgOn ? 4 : 0)) {
+      hurtPlayer(dmgOn ? C.contactDamage : Math.ceil(C.contactDamage * 0.5), e.x, e.y);
+    }
+  }
+}
+
+function updateBoss() {
+  if (boss.kind === "jelly") updateJelly();
+  else if (boss.kind === "eye") updateEye();
+  else updateCrab();
+}
+
+// -----------------------------------------------------------------------------
+// OLHO DO ABISMO — bullet hell. Fica longe, quase não se move e enche a arena
+// de padrões. Três fases; a cada fase os pilares de cobertura vão sumindo.
+// Três coisas impedem o jogador de só acampar atrás de uma pedra:
+//   1. o CERCO nasce num anel em volta dele e vem de todos os lados;
+//   2. os PERSEGUIDORES atravessam a rocha;
+//   3. impactos erodem a pedra, e as fases 2 e 3 a fazem desaparecer.
+// -----------------------------------------------------------------------------
+function updateEye() {
+  const E = CONFIG.eye, b = boss;
+  const i = b.phase - 1;                        // índice dos valores por fase
+  if (b.flash > 0) b.flash -= DTMS;
+
+  // ---- troca de fase: dissolve parte dos pilares
+  const frac = b.hp / b.maxHp;
+  let quer = 1;
+  if (frac <= E.phaseAt[2]) quer = 3; else if (frac <= E.phaseAt[1]) quer = 2;
+  if (quer > b.phase) {
+    b.phase = quer;
+    b.phase2 = b.phase >= 2;                    // reaproveita a barra de vida
+    dissolvePillars(E.arena.pillarKeepByPhase[b.phase - 1]);
+    b.state = "think"; b.t = 420;
+    bubbles(b.x, b.y, 36, "#ffc2f0", 32, 340);
+    shake(480, 9);
+    return;
+  }
+
+  b.t -= DTMS;
+  b.pulse += DT * (1.4 + b.phase * 0.7);
+  const dx = player.x - b.x, dy = player.y - b.y, d = len(dx, dy) || 1;
+  const thinkMs = E.thinkMs[i];
+  let vagando = true;
+
+  switch (b.state) {
+    case "think":
+      if (b.t <= 0) {
+        // fase 1: leque, espiral e cerco. fase 2 acrescenta perseguidores.
+        // fase 3 acrescenta a chuva e repete mais o cerco.
+        const pool = b.phase === 1 ? ["fan", "spiral", "siege"]
+                   : b.phase === 2 ? ["fan", "spiral", "siege", "seek", "spiral"]
+                   : ["spiral", "siege", "seek", "rain", "siege", "fan"];
+        let next = pool[randi(0, pool.length - 1)];
+        if (next === b.lastAttack && Math.random() < 0.65) next = pool[randi(0, pool.length - 1)];
+        b.lastAttack = next;
+        if (next === "fan") { b.state = "fanTel"; b.t = b.phase === 3 ? E.fan.telegraphMsP3 : E.fan.telegraphMs; }
+        else if (next === "spiral") { b.state = "spiralTel"; b.t = E.spiral.telegraphMs; }
+        else if (next === "siege") { b.state = "siegeTel"; b.t = E.siege.telegraphMs; }
+        else if (next === "seek") { b.state = "seekTel"; b.t = E.seekers.telegraphMs; }
+        else { b.state = "rainTel"; b.t = E.rain.telegraphMs; }
+      }
+      break;
+
+    // ---- leque mirado: a cobertura funciona contra este
+    case "fanTel":
+      vagando = false;
+      b.aimAng = Math.atan2(dy, dx);
+      if (b.t <= 0) { b.state = "fan"; b.volley = 0; b.t = 0; }
+      break;
+    case "fan": {
+      vagando = false;
+      if (b.t <= 0) {
+        const n = E.fan.count[i];
+        b.aimAng = Math.atan2(dy, dx);
+        for (let k = 0; k < n; k++) {
+          const a = b.aimAng + (n === 1 ? 0 : (k / (n - 1) - 0.5) * E.fan.spread);
+          fireProjectile(b.x + Math.cos(a) * b.radius * 0.8, b.y + Math.sin(a) * b.radius * 0.8,
+            a, E.fan.speed, E.fan.damage, E.fan.r, E.fan.lifeMs, "#ffe07a");
+        }
+        shake(90, 2);
+        b.volley++;
+        if (b.volley >= E.fan.volleys[i]) { b.state = "think"; b.t = thinkMs; } else b.t = E.fan.volleyGapMs;
+      }
+      break;
+    }
+
+    // ---- espiral: braços girando, enche a água
+    case "spiralTel":
+      vagando = false;
+      if (b.t <= 0) {
+        b.state = "spiral"; b.t = E.spiral.durationMs[i];
+        b.spiralAng = rand(0, TAU); b.emitT = 0;
+        b.spiralDir = Math.random() < 0.5 ? -1 : 1;
+      }
+      break;
+    case "spiral": {
+      vagando = false;
+      b.spiralAng += E.spiral.spinSpeed * b.spiralDir * DT;
+      b.emitT -= DTMS;
+      if (b.emitT <= 0) {
+        b.emitT = E.spiral.emitEveryMs;
+        const arms = E.spiral.arms[i];
+        for (let k = 0; k < arms; k++) {
+          const a = b.spiralAng + (k / arms) * TAU;
+          fireProjectile(b.x + Math.cos(a) * b.radius * 0.8, b.y + Math.sin(a) * b.radius * 0.8,
+            a, E.spiral.speed, E.spiral.damage, E.spiral.r, E.spiral.lifeMs, "#9ad8ff");
+        }
+      }
+      if (b.t <= 0) { b.state = "think"; b.t = thinkMs; }
+      break;
+    }
+
+    // ---- CERCO: nasce em volta do jogador, vindo de todos os lados
+    case "siegeTel":
+      vagando = false;
+      b.siegeX = player.x; b.siegeY = player.y;   // acompanha até travar
+      if (b.t <= 0) {
+        const n = E.siege.count[i], off = rand(0, TAU);
+        for (let k = 0; k < n; k++) {
+          const a = off + (k / n) * TAU;
+          const px = b.siegeX + Math.cos(a) * E.siege.ringR;
+          const py = b.siegeY + Math.sin(a) * E.siege.ringR;
+          fireProjectile(px, py, a + Math.PI, E.siege.speed, E.siege.damage,
+            E.siege.r, E.siege.lifeMs, "#ff9ad8");
+        }
+        bubbles(b.siegeX, b.siegeY, 14, "#ff9ad8", 30, 200);
+        shake(180, 4);
+        b.state = "think"; b.t = thinkMs;
+      }
+      break;
+
+    // ---- perseguidores: atravessam a rocha
+    case "seekTel":
+      vagando = false;
+      if (b.t <= 0) {
+        const n = E.seekers.count[i];
+        for (let k = 0; k < n; k++) {
+          const a = (k / Math.max(1, n)) * TAU + rand(-0.2, 0.2);
+          fireProjectile(b.x + Math.cos(a) * b.radius, b.y + Math.sin(a) * b.radius,
+            a, E.seekers.speed, E.seekers.damage, E.seekers.r, E.seekers.lifeMs, "#c8a0ff",
+            { ignoresRock: true, turnRate: E.seekers.turnRate });
+        }
+        bubbles(b.x, b.y, 16, "#c8a0ff", 24, 220);
+        b.state = "think"; b.t = thinkMs;
+      }
+      break;
+
+    // ---- chuva do alto da arena (fase 3)
+    case "rainTel":
+      vagando = false;
+      if (b.t <= 0) { b.state = "rain"; b.t = E.rain.durationMs; b.emitT = 0; }
+      break;
+    case "rain": {
+      vagando = false;
+      b.emitT -= DTMS;
+      if (b.emitT <= 0) {
+        b.emitT = E.rain.everyMs;
+        for (let k = 0; k < 3; k++) {
+          const px = clamp(player.x + rand(-E.rain.spreadX, E.rain.spreadX), BORDER + 8, world.w - BORDER - 8);
+          fireProjectile(px, BORDER + 10, Math.PI / 2 + rand(-0.14, 0.14),
+            E.rain.speed, E.rain.damage, E.rain.r, E.rain.lifeMs, "#a8ffd8");
+        }
+      }
+      if (b.t <= 0) { b.state = "think"; b.t = thinkMs; }
+      break;
+    }
+  }
+
+  // ---- movimento: vagueia devagar perto do centro, sem deixar o jogador colar
+  if (vagando) {
+    const cx = world.w / 2, cy = world.h / 2;
+    b.driftAng += DT * 0.45;
+    let tx = cx + Math.cos(b.driftAng) * E.driftR, ty = cy + Math.sin(b.driftAng) * E.driftR * 0.6;
+    if (d < E.keepDist) {                         // recua se o jogador chegar perto
+      tx = b.x - (dx / d) * 120; ty = b.y - (dy / d) * 120;
+    }
+    const ox = tx - b.x, oy = ty - b.y, od = len(ox, oy) || 1;
+    b.vx += (ox / od) * E.accel * DT; b.vy += (oy / od) * E.accel * DT;
+  } else {
+    b.vx *= 1 - 3.5 * DT; b.vy *= 1 - 3.5 * DT;
+  }
+
+  const s = len(b.vx, b.vy);
+  if (s > E.speed) { b.vx = (b.vx / s) * E.speed; b.vy = (b.vy / s) * E.speed; }
+  const f = 1 / (1 + E.drag * DT);
+  b.vx *= f; b.vy *= f;
+  b.blockedX = b.blockedY = false;
+  moveAndCollide(b, DT);
+  b.ang = angLerp(b.ang, Math.atan2(dy, dx), 0.08);
+
+  if (Math.hypot(b.x - b.lastX, b.y - b.lastY) < 0.5) b.stillMs += DTMS; else b.stillMs = 0;
+  if (b.stillMs > E.unstickAfterMs && b.state === "think") { unstick(b, collRadius(b)); b.stillMs = 0; }
+  b.lastX = b.x; b.lastY = b.y;
+
+  if (Math.hypot(player.x - b.x, player.y - b.y) < b.radius * 0.85 + player.radius)
+    hurtPlayer(E.contactDamage, b.x, b.y);
+}
+
+// -----------------------------------------------------------------------------
+// água-viva colossal: fica longe, enche a água de projéteis, varre com o raio
+// e puxa o jogador para perto. Não tem investida nem golpe corpo a corpo.
+// -----------------------------------------------------------------------------
+function updateJelly() {
+  const J = CONFIG.jelly, b = boss;
+  if (b.flash > 0) b.flash -= DTMS;
+  if (!b.phase2 && b.hp / b.maxHp < J.phase2At) {
+    b.phase2 = true; b.state = "think"; b.t = 300;
+    bubbles(b.x, b.y, 30, "#b9fff0", 30, 320); shake(380, 7);
+  }
+  b.t -= DTMS;
+  b.pulse += DT * (b.phase2 ? 3.6 : 2.2);
+  const dx = player.x - b.x, dy = player.y - b.y, d = len(dx, dy) || 1;
+  const thinkMs = b.phase2 ? J.thinkMsP2 : J.thinkMs;
+  let hover = true;               // só flutua quando não está no meio de um ataque
+
+  switch (b.state) {
+    case "think":
+      if (b.t <= 0) {
+        // fase 1 alterna os três; fase 2 favorece anel e raio, que cobrem mais água
+        const pool = b.phase2 ? ["ring", "beam", "ring", "beam", "pull"] : ["ring", "beam", "pull"];
+        let next = pool[randi(0, pool.length - 1)];
+        if (next === b.lastAttack && Math.random() < 0.6) next = pool[randi(0, pool.length - 1)];
+        b.lastAttack = next;
+        if (next === "ring") { b.state = "ringTel"; b.t = b.phase2 ? J.ring.telegraphMsP2 : J.ring.telegraphMs; }
+        else if (next === "beam") { b.state = "beamTel"; b.t = b.phase2 ? J.beam.telegraphMsP2 : J.beam.telegraphMs; }
+        else { b.state = "pullTel"; b.t = J.pull.telegraphMs; }
+      }
+      break;
+
+    case "ringTel":
+      hover = false;
+      if (b.t <= 0) { b.state = "ring"; b.wave = 0; b.twist = rand(0, TAU); b.t = 0; }
+      break;
+
+    case "ring": {
+      hover = false;
+      if (b.t <= 0) {
+        const count = b.phase2 ? J.ring.countP2 : J.ring.count;
+        for (let i = 0; i < count; i++) {
+          const a = b.twist + (i / count) * TAU;
+          fireProjectile(b.x + Math.cos(a) * b.radius * 0.7, b.y + Math.sin(a) * b.radius * 0.7,
+            a, J.ring.speed, J.ring.damage, J.ring.r, J.ring.lifeMs, "#8affe0");
+        }
+        bubbles(b.x, b.y, 12, "#8affe0", b.radius * 0.5, 180);
+        shake(110, 3);
+        b.twist += J.ring.waveTwist;          // cada onda sai girada, abrindo brechas diferentes
+        b.wave++;
+        const waves = b.phase2 ? J.ring.wavesP2 : J.ring.waves;
+        if (b.wave >= waves) { b.state = "think"; b.t = thinkMs; } else b.t = J.ring.waveGapMs;
+      }
+      break;
+    }
+
+    case "beamTel":
+      hover = false;
+      b.beamAng = Math.atan2(dy, dx);         // acompanha até travar
+      // o lado do giro é sorteado AQUI, e o aviso desenha a seta: antes ele era
+      // decidido só no início da varredura e não havia para onde correr
+      if (b.beamDirLocked !== true) { b.beamDir = Math.random() < 0.5 ? -1 : 1; b.beamDirLocked = true; }
+      b.beamLen = rayLength(b.x, b.y, b.beamAng, J.beam.length);
+      if (b.t <= 0) {
+        b.state = "beam"; b.t = b.phase2 ? J.beam.sweepMsP2 : J.beam.sweepMs;
+        b.beamHit = false; b.beamDirLocked = false;
+        b.beamTip = J.beam.innerGap;          // a ponta começa colada nela
+        b.beamExtended = false; b.beamActiveMs = 0;
+        shake(160, 4);
+      }
+      break;
+
+    case "beam": {
+      hover = false;
+      b.beamLen = rayLength(b.x, b.y, b.beamAng, J.beam.length);
+      const alvoLen = Math.min(b.beamLen, J.beam.length);
+
+      if (!b.beamExtended) {
+        // fase de esticar: a ponta viaja para fora e o raio ainda não gira.
+        // O cronômetro da varredura não corre aqui, senão esticar comeria a
+        // varredura inteira — devolve o passo descontado no topo da função.
+        b.t += DTMS;
+        b.beamTip += J.beam.growSpeed * DT;
+        if (b.beamTip >= alvoLen) { b.beamTip = alvoLen; b.beamExtended = true; }
+      } else {
+        b.beamTip = alvoLen;
+        b.beamAng += (b.phase2 ? J.beam.sweepSpeedP2 : J.beam.sweepSpeed) * b.beamDir * DT;
+      }
+      if (!J.beam.rotateAfterExtend && !b.beamExtended)
+        b.beamAng += (b.phase2 ? J.beam.sweepSpeedP2 : J.beam.sweepSpeed) * b.beamDir * DT;
+
+      // o dano só vale até onde a ponta chegou, e nunca antes do piso de reação
+      b.beamActiveMs += DTMS;
+      const podeMachucar = !(J.beam.oncePerSweep && b.beamHit) && b.beamActiveMs >= J.beam.armDelayMs;
+      if (podeMachucar &&
+          distInRay(b.x, b.y, b.beamAng, J.beam.innerGap, b.beamTip, player.x, player.y)
+            < J.beam.halfWidth + player.radius) {
+        hurtPlayer(J.beam.damage, b.x, b.y);
+        b.beamHit = true;
+      }
+      if (b.t <= 0) { b.state = "think"; b.t = thinkMs; }
+      break;
+    }
+
+    case "pullTel":
+      hover = false;
+      if (b.t <= 0) { b.state = "pull"; b.t = J.pull.durationMs; b.stingerT = 0; }
+      break;
+
+    case "pull": {
+      hover = false;
+      if (d < J.pull.radius) {                // suga o jogador para dentro do alcance dos ferrões
+        player.vx -= (dx / d) * J.pull.force * DT;
+        player.vy -= (dy / d) * J.pull.force * DT;
+        if (Math.random() < 0.25) bubbles(player.x + dx * 0.3, player.y + dy * 0.3, 1, "#a8e6ff", 8, 40);
+      }
+      b.stingerT -= DTMS;
+      if (b.stingerT <= 0) {
+        b.stingerT = J.pull.stingerEveryMs;
+        const a = Math.atan2(dy, dx) + rand(-J.pull.stingerSpread, J.pull.stingerSpread);
+        fireProjectile(b.x + Math.cos(a) * b.radius * 0.6, b.y + Math.sin(a) * b.radius * 0.6,
+          a, J.pull.stingerSpeed, J.pull.damage, J.pull.r, J.pull.lifeMs, "#ffd6f5");
+      }
+      if (b.t <= 0) { b.state = "think"; b.t = thinkMs; }
+      break;
+    }
+  }
+
+  if (hover) {
+    // posição de flutuação: a `hoverDist` do jogador, um pouco acima dele
+    const away = d > 1 ? { x: -dx / d, y: -dy / d } : { x: 1, y: 0 };
+    const tx = player.x + away.x * J.hoverDist;
+    const ty = player.y + away.y * J.hoverDist + J.hoverBias;
+    const ox = tx - b.x, oy = ty - b.y, od = len(ox, oy) || 1;
+    b.vx += (ox / od) * J.accel * DT;
+    b.vy += (oy / od) * J.accel * DT;
+  } else {
+    b.vx *= 1 - 4 * DT; b.vy *= 1 - 4 * DT;   // ancorada durante os ataques
+  }
+
+  const s = len(b.vx, b.vy);
+  if (s > J.speed) { b.vx = (b.vx / s) * J.speed; b.vy = (b.vy / s) * J.speed; }
+  const f = 1 / (1 + J.drag * DT);
+  b.vx *= f; b.vy *= f;
+  b.blockedX = b.blockedY = false;
+  moveAndCollide(b, DT);
+  b.ang = angLerp(b.ang, Math.atan2(dy, dx), 0.04);
+
+  // mesma rede de segurança do caranguejo
+  if (Math.hypot(b.x - b.lastX, b.y - b.lastY) < 0.5) b.stillMs += DTMS; else b.stillMs = 0;
+  if (b.stillMs > J.unstickAfterMs && b.state === "think") {
+    unstick(b, collRadius(b)); b.stillMs = 0;
+  }
+  b.lastX = b.x; b.lastY = b.y;
+
+  if (Math.hypot(player.x - b.x, player.y - b.y) < b.radius * 0.8 + player.radius)
+    hurtPlayer(J.contactDamage, b.x, b.y);
+}
+
+function updateCrab() {
+  const B = CONFIG.boss, b = boss;
+  if (b.flash > 0) b.flash -= DTMS;
+  if (!b.phase2 && b.hp / b.maxHp < B.phase2At) {
+    b.phase2 = true; b.state = "think"; b.t = 260;
+    bubbles(b.x, b.y, 26, "#ffb27a", 24, 300); shake(400, 8);
+  }
+  b.t -= DTMS;
+  const dx = player.x - b.x, dy = player.y - b.y, d = len(dx, dy) || 1;
+  b.clawT += DT;
+
+  switch (b.state) {
+    case "think": {
+      // se aproxima devagar enquanto pensa
+      b.vx += (dx / d) * B.accel * 0.45 * DT; b.vy += (dy / d) * B.accel * 0.45 * DT;
+      if (b.t <= 0) {
+        // fase 1: cicla investida -> pinça -> chamado. fase 2: mais investidas e pinças, sem pausa longa.
+        const pool = b.phase2
+          ? ["dash", "pinch", "dash", "pinch", "call"]
+          : ["dash", "pinch", "call"];
+        let next = pool[randi(0, pool.length - 1)];
+        if (next === b.lastAttack && Math.random() < 0.6) next = pool[randi(0, pool.length - 1)];
+        b.lastAttack = next;
+        if (next === "dash") { b.state = "dashTel"; b.t = b.phase2 ? B.dash.telegraphMsP2 : B.dash.telegraphMs; }
+        else if (next === "pinch") { b.state = "pinchTel"; b.t = b.phase2 ? B.pinch.telegraphMsP2 : B.pinch.telegraphMs; }
+        else { b.state = "callTel"; b.t = B.call.telegraphMs; }
+      }
+      break;
+    }
+    case "dashTel": {
+      b.vx *= 1 - 6 * DT; b.vy *= 1 - 6 * DT;
+      b.dirX = dx / d; b.dirY = dy / d;
+      if (b.t <= 0) {
+        b.state = "dash"; b.t = B.dash.durationMs;
+        const s = b.phase2 ? B.dash.speedP2 : B.dash.speed;
+        b.vx = b.dirX * s; b.vy = b.dirY * s;
+        bubbles(b.x, b.y, 18, "#ffd9b0", 20, 240); shake(160, 4);
+      }
+      break;
+    }
+    case "dash": {
+      if (b.t <= 0 || b.blockedX || b.blockedY) {
+        if (b.blockedX || b.blockedY) shake(220, 6);
+        // fase 2: emenda uma segunda investida
+        if (b.phase2 && Math.random() < 0.55) { b.state = "dashTel"; b.t = B.dash.telegraphMsP2 * 0.7; }
+        else { b.state = "think"; b.t = b.phase2 ? B.thinkMsP2 : B.thinkMs; }
+      }
+      if (Math.hypot(player.x - b.x, player.y - b.y) < b.radius + player.radius + 6) hurtPlayer(B.dash.damage, b.x, b.y);
+      break;
+    }
+    case "pinchTel": {
+      b.vx *= 1 - 5 * DT; b.vy *= 1 - 5 * DT;
+      if (b.t <= 0) { b.state = "pinch"; b.t = B.pinch.activeMs; }
+      break;
+    }
+    case "pinch": {
+      const R = b.phase2 ? B.pinch.radiusP2 : B.pinch.radius;
+      if (b.t > B.pinch.activeMs - DTMS * 1.5) { // frame de abertura do golpe
+        bubbles(b.x, b.y, 24, "#ffc9a0", R * 0.5, 320); shake(220, 7);
+      }
+      if (Math.hypot(player.x - b.x, player.y - b.y) < R) hurtPlayer(B.pinch.damage, b.x, b.y);
+      if (b.t <= 0) { b.state = "think"; b.t = b.phase2 ? B.thinkMsP2 : B.thinkMs; }
+      break;
+    }
+    case "callTel": {
+      b.vx *= 1 - 4 * DT; b.vy *= 1 - 4 * DT;
+      if (b.t <= 0) {
+        for (let i = 0; i < B.call.count; i++) {
+          const a = rand(0, TAU), r = b.radius + 34;
+          let px = clamp(b.x + Math.cos(a) * r, BORDER + 16, world.w - BORDER - 16);
+          let py = clamp(b.y + Math.sin(a) * r, BORDER + 16, world.h - BORDER - 16);
+          if (hitsRock(px, py, CONFIG.fish.radius)) {
+            const s = freeSpot(player, 120, CONFIG.fish.radius);
+            if (!s) continue;
+            px = s.x; py = s.y;
+          }
+          spawnFish({ x: px, y: py });
+        }
+        bubbles(b.x, b.y, 22, "#a8ffd8", 22, 280);
+        b.state = "think"; b.t = b.phase2 ? B.thinkMsP2 : B.thinkMs;
+      }
+      break;
+    }
+  }
+
+  if (b.state !== "dash") {
+    const s = len(b.vx, b.vy);
+    if (s > B.speed) { b.vx = (b.vx / s) * B.speed; b.vy = (b.vy / s) * B.speed; }
+  }
+  const f = 1 / (1 + B.drag * DT);
+  b.vx *= f; b.vy *= f;
+  b.blockedX = b.blockedY = false;
+  moveAndCollide(b, DT);
+  b.ang = angLerp(b.ang, Math.atan2(dy, dx), 0.06);
+
+  // ---- antitravamento do boss ----
+  // 1) bateu na rocha perseguindo: desliza pela tangente em vez de moer a parede
+  if (b.slideMs > 0) b.slideMs -= DTMS;
+  if ((b.blockedX || b.blockedY) && (b.state === "think" || b.state === "dash")) {
+    if (b.slideMs <= 0) { b.slideDir = Math.random() < 0.5 ? -1 : 1; b.slideMs = 700; }
+    b.vx += (-dy / d) * b.slideDir * B.accel * 0.9 * DT;
+    b.vy += (dx / d) * b.slideDir * B.accel * 0.9 * DT;
+  }
+  // 2) rede de segurança: parado tempo demais => recolocado no espaço livre mais próximo
+  if (Math.hypot(b.x - b.lastX, b.y - b.lastY) < 0.5) b.stillMs += DTMS; else b.stillMs = 0;
+  if (b.stillMs > B.unstickAfterMs) {
+    unstick(b, collRadius(b));
+    b.stillMs = 0;
+    b.state = "think"; b.t = 300;
+    bubbles(b.x, b.y, 16, "#ffd2b0", 20, 200);
+  }
+  b.lastX = b.x; b.lastY = b.y;
+
+  if (b.state !== "dash" && Math.hypot(player.x - b.x, player.y - b.y) < b.radius + player.radius)
+    hurtPlayer(B.contactDamage, b.x, b.y);
+}
+
+function updateSpawner() {
+  if (game.dead) return;
+  // durante a luta do boss o spawn periódico para; só o chamado dele traz peixes
+  if (boss && CONFIG.spawn.pauseDuringBoss) {
+    game.spawnTimerMs = game.spawnIntervalMs;   // recomeça inteiro quando o boss morrer
+    return;
+  }
+  game.spawnTimerMs -= DTMS;
+  if (game.spawnTimerMs <= 0) {
+    game.spawnTimerMs = game.spawnIntervalMs;
+    game.spawnIntervalMs = Math.max(CONFIG.spawn.intervalMinMs, game.spawnIntervalMs - CONFIG.spawn.intervalDecayMs);
+    if (enemies.length < CONFIG.spawn.maxAlive) {
+      if (Math.random() < 0.6) spawnFish(); else spawnCircler();
+    }
+  }
+}
+
+// =============================================================================
+// desenho
+// =============================================================================
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#123a63");
+  g.addColorStop(0.45, "#0a2444");
+  g.addColorStop(1, "#04101f");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // colunas de luz vagas (placeholder de ambiente)
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = "#9fd8ff";
+  for (let i = 0; i < 5; i++) {
+    const x = (i + 0.5) * (W / 5) - (cam.x * 0.25) % (W / 5);
+    ctx.beginPath(); ctx.moveTo(x - 26, 0); ctx.lineTo(x + 26, 0); ctx.lineTo(x + 70, H); ctx.lineTo(x - 70, H); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawRocks() {
+  // só o que está na tela: a arena do Olho tem quase 5x mais blocos
+  const x0 = Math.max(0, Math.floor(cam.x / TS) - 1), x1 = Math.min(COLS - 1, Math.ceil((cam.x + W) / TS));
+  const y0 = Math.max(0, Math.floor(cam.y / TS) - 1), y1 = Math.min(ROWS - 1, Math.ceil((cam.y + H) / TS));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (!grid[y * COLS + x]) continue;
+    const px = x * TS, py = y * TS;
+    const exposedTop = !solid(x, y - 1);
+    ctx.fillStyle = exposedTop ? "#3c5a52" : "#22333c";
+    ctx.fillRect(px, py, TS, TS);
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fillRect(px + TS - 3, py, 3, TS);
+    ctx.fillRect(px, py + TS - 3, TS, 3);
+    if (exposedTop) { ctx.fillStyle = "#587f6f"; ctx.fillRect(px, py, TS, 3); }
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = clamp(p.life / p.maxLife, 0, 1);
+    ctx.globalAlpha = a * 0.85;
+    ctx.strokeStyle = p.color; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.5 + a * 0.8), 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawPlayer() {
+  const sp = player.spear;
+  const blink = player.invulnMs > 0 && Math.floor(player.invulnMs / CONFIG.player.hurt.blinkMs) % 2 === 0;
+  ctx.save();
+  ctx.globalAlpha = blink ? 0.35 : 1;
+
+  // lança
+  const tip = spearTip();
+  const bx = player.x + tip.dx * 6, by = player.y + tip.dy * 6;
+  ctx.strokeStyle = sp.state === "thrust" ? "#fff3c4" : "#cdd8e2";
+  ctx.lineWidth = sp.state === "thrust" ? 4 : 3;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+  // ponta
+  ctx.fillStyle = "#fefefe";
+  ctx.beginPath(); ctx.arc(tip.x, tip.y, 3.5, 0, TAU); ctx.fill();
+  // indicador de carga
+  if (sp.state === "anticipation" && sp.chargeMs > 0) {
+    const k = sp.chargeMs / CONFIG.spear.chargeMaxMs;
+    ctx.strokeStyle = k >= 1 ? "#ffe06a" : "#8fd0ff";
+    ctx.lineWidth = 2 + k * 3;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.arc(player.x, player.y, 16 + k * 10, 0, TAU * k); ctx.stroke();
+    ctx.globalAlpha = blink ? 0.35 : 1;
+  }
+
+  // corpo do mergulhador
+  ctx.translate(player.x, player.y); ctx.rotate(player.aim);
+  ctx.fillStyle = player.dashMs > 0 ? "#bfeaff" : "#2f7fd0";
+  ctx.beginPath(); ctx.ellipse(0, 0, 13, 9, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#123a5c";                     // tanque nas costas
+  ctx.fillRect(-13, -5, 6, 10);
+  ctx.fillStyle = "#ffe9a8";                      // visor
+  ctx.beginPath(); ctx.arc(6, 0, 4.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#1a4a70";                      // nadadeiras
+  ctx.beginPath(); ctx.moveTo(-12, -8); ctx.lineTo(-20, -13); ctx.lineTo(-14, -2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-12, 8); ctx.lineTo(-20, 13); ctx.lineTo(-14, 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawEnemy(e) {
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  const flashing = e.flash > 0;
+  if (e.type === "fish") {
+    ctx.rotate(e.ang);
+    const tel = e.state === "telegraph";
+    if (tel) {
+      const k = 1 - e.t / CONFIG.fish.telegraphMs;
+      ctx.globalAlpha = 0.25 + 0.45 * Math.abs(Math.sin(k * 14));
+      ctx.fillStyle = "#ffcf6a";
+      ctx.beginPath(); ctx.arc(0, 0, e.radius + 9, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+      // linha de aviso na direção travada
+      ctx.strokeStyle = "rgba(255,190,90,0.5)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(e.radius, 0); ctx.lineTo(e.radius + 70, 0); ctx.stroke();
+    }
+    ctx.fillStyle = flashing ? "#ffffff" : tel ? "#ffb347" : "#e0603f";
+    ctx.beginPath(); ctx.ellipse(0, 0, e.radius + 4, e.radius * 0.68, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = flashing ? "#ffffff" : "#a83c28";
+    ctx.beginPath(); ctx.moveTo(-e.radius - 3, 0); ctx.lineTo(-e.radius - 12, -7); ctx.lineTo(-e.radius - 12, 7); ctx.fill();
+    ctx.fillStyle = "#0b1420";
+    ctx.beginPath(); ctx.arc(e.radius * 0.6, -2, 2, 0, TAU); ctx.fill();
+  } else {
+    const wind = e.state === "windup";
+    if (wind) {
+      ctx.globalAlpha = 0.3 + 0.4 * Math.abs(Math.sin((1 - e.t / CONFIG.circler.windupMs) * 12));
+      ctx.fillStyle = "#c58bff";
+      ctx.beginPath(); ctx.arc(0, 0, e.radius + 10, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = flashing ? "#ffffff" : e.state === "strike" ? "#e2b6ff" : "#8a5ad0";
+    ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, TAU); ctx.fill();
+    // tentáculos girando
+    ctx.strokeStyle = flashing ? "#ffffff" : "#5c3a94"; ctx.lineWidth = 3;
+    for (let i = 0; i < 6; i++) {
+      const a = e.ang + (i / 6) * TAU;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * e.radius * 0.8, Math.sin(a) * e.radius * 0.8);
+      ctx.lineTo(Math.cos(a) * (e.radius + 9), Math.sin(a) * (e.radius + 9)); ctx.stroke();
+    }
+    ctx.fillStyle = "#ffe066";
+    ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+
+  // barrinha de vida
+  if (e.hp < e.maxHp) {
+    const w = e.radius * 2.4;
+    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(e.x - w / 2, e.y - e.radius - 12, w, 3);
+    ctx.fillStyle = "#7ce89a"; ctx.fillRect(e.x - w / 2, e.y - e.radius - 12, w * (e.hp / e.maxHp), 3);
+  }
+}
+
+function drawProjectiles() {
+  for (const p of projectiles) {
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 2.1, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(p.x - p.r * 0.25, p.y - p.r * 0.25, p.r * 0.35, 0, TAU); ctx.fill();
+    // farpas girando, para ler a rotação
+    ctx.strokeStyle = p.color; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
+    for (let i = 0; i < 4; i++) {
+      const a = p.spin + (i / 4) * TAU;
+      ctx.beginPath();
+      ctx.moveTo(p.x + Math.cos(a) * p.r, p.y + Math.sin(a) * p.r);
+      ctx.lineTo(p.x + Math.cos(a) * (p.r + 4), p.y + Math.sin(a) * (p.r + 4));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawBoss() {
+  if (boss.kind === "jelly") drawJelly();
+  else if (boss.kind === "eye") drawEye();
+  else drawCrab();
+}
+
+function drawEye() {
+  const b = boss, E = CONFIG.eye;
+  const flash = b.flash > 0;
+  const iris = b.phase === 3 ? "#ff5a9e" : b.phase === 2 ? "#ffa04a" : "#6ad8ff";
+
+  // ---- avisos
+  if (b.state === "fanTel") {
+    const k = 1 - b.t / (b.phase === 3 ? E.fan.telegraphMsP3 : E.fan.telegraphMs);
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.aimAng);
+    ctx.globalAlpha = 0.12 + 0.22 * k; ctx.fillStyle = "#ffe07a";
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 640, -E.fan.spread / 2, E.fan.spread / 2); ctx.fill();
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+  if (b.state === "spiralTel") {
+    const k = 1 - b.t / E.spiral.telegraphMs;
+    ctx.strokeStyle = "#9ad8ff"; ctx.lineWidth = 2; ctx.globalAlpha = 0.5;
+    for (let a = 0; a < 3; a++) {
+      ctx.beginPath();
+      for (let t = 0; t < 40; t++) {            // braços de espiral desenhados
+        const ang = (a / 3) * TAU + t * 0.16 + k * 3, rr = 20 + t * 5;
+        const fx = b.x + Math.cos(ang) * rr, fy = b.y + Math.sin(ang) * rr;
+        t === 0 ? ctx.moveTo(fx, fy) : ctx.lineTo(fx, fy);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (b.state === "siegeTel") {
+    const k = 1 - b.t / E.siege.telegraphMs;
+    ctx.strokeStyle = "#ff9ad8"; ctx.lineWidth = 2 + 3 * k; ctx.globalAlpha = 0.35 + 0.4 * k;
+    ctx.beginPath(); ctx.arc(b.siegeX, b.siegeY, E.siege.ringR, 0, TAU); ctx.stroke();
+    // tracinhos apontando para dentro, para ler que vem de todos os lados
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * TAU;
+      ctx.beginPath();
+      ctx.moveTo(b.siegeX + Math.cos(a) * E.siege.ringR, b.siegeY + Math.sin(a) * E.siege.ringR);
+      ctx.lineTo(b.siegeX + Math.cos(a) * (E.siege.ringR - 26 * k), b.siegeY + Math.sin(a) * (E.siege.ringR - 26 * k));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (b.state === "seekTel") {
+    ctx.strokeStyle = "#c8a0ff"; ctx.lineWidth = 3;
+    const k = 1 - b.t / E.seekers.telegraphMs;
+    ctx.globalAlpha = 0.25 + 0.45 * Math.abs(Math.sin(k * 12));
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.radius + 14 + k * 10, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  if (b.state === "rainTel") {
+    const k = 1 - b.t / E.rain.telegraphMs;
+    ctx.globalAlpha = 0.1 + 0.25 * k; ctx.fillStyle = "#a8ffd8";
+    ctx.fillRect(clamp(player.x - E.rain.spreadX, 0, world.w), BORDER,
+                 Math.min(E.rain.spreadX * 2, world.w), world.h);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- corpo: olho grande com íris que segue o jogador
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  const R = b.radius, breathe = 1 + Math.sin(b.pulse) * 0.05;
+
+  // coroa de pequenos olhos girando (um por fase restante)
+  ctx.fillStyle = flash ? "#ffffff" : iris;
+  for (let i = 0; i < 6 + b.phase * 2; i++) {
+    const a = b.pulse * 0.5 + (i / (6 + b.phase * 2)) * TAU;
+    const rr = R * 1.5 + Math.sin(b.pulse * 2 + i) * 6;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, 5, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // esclera
+  ctx.save();
+  ctx.scale(breathe, 1 / breathe);
+  const g = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R);
+  if (flash) { g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#ffffff"); }
+  else { g.addColorStop(0, "#f2e8ff"); g.addColorStop(0.7, "#c8b4dd"); g.addColorStop(1, "rgba(70,40,90,0.85)"); }
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  // veias
+  ctx.strokeStyle = flash ? "#ffffff" : "rgba(150,60,90,0.5)"; ctx.lineWidth = 2;
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * TAU + 0.4;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 0.45, Math.sin(a) * R * 0.45);
+    ctx.quadraticCurveTo(Math.cos(a + 0.3) * R * 0.75, Math.sin(a + 0.3) * R * 0.75,
+                         Math.cos(a) * R * 0.97, Math.sin(a) * R * 0.97);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // íris + pupila olhando para o jogador
+  const olhoR = R * 0.42, off = R * 0.3;
+  const ix = Math.cos(b.ang) * off, iy = Math.sin(b.ang) * off;
+  const carregando = b.state.endsWith("Tel");
+  ctx.fillStyle = flash ? "#ffffff" : iris;
+  ctx.beginPath(); ctx.arc(ix, iy, olhoR * (carregando ? 1.15 : 1), 0, TAU); ctx.fill();
+  ctx.fillStyle = "#0a0410";
+  ctx.beginPath(); ctx.arc(ix, iy, olhoR * (carregando ? 0.38 : 0.55), 0, TAU); ctx.fill();
+  ctx.globalAlpha = 0.5; ctx.fillStyle = iris;
+  ctx.beginPath(); ctx.arc(ix, iy, olhoR * 1.7, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.beginPath(); ctx.arc(ix - olhoR * 0.3, iy - olhoR * 0.35, olhoR * 0.22, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawJelly() {
+  const b = boss, J = CONFIG.jelly;
+  const flash = b.flash > 0;
+  const glow = b.phase2 ? "#ff9ede" : "#8affe0";
+
+  // ---- avisos de ataque
+  if (b.state === "ringTel") {
+    const k = 1 - b.t / (b.phase2 ? J.ring.telegraphMsP2 : J.ring.telegraphMs);
+    ctx.strokeStyle = glow; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {                       // anéis convergindo para dentro
+      const rr = 150 * (1 - ((k + i / 3) % 1));
+      ctx.globalAlpha = 0.5 * (1 - rr / 150);
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.radius + rr, 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (b.state === "beamTel" || b.state === "beam") {
+    const ativo = b.state === "beam";
+    const tot = ativo ? 1 : (b.phase2 ? J.beam.telegraphMsP2 : J.beam.telegraphMs);
+    const k = ativo ? 1 : 1 - b.t / tot;
+    // no aviso desenha a linha inteira (é a mira); ativo, só até onde a ponta chegou
+    const L = ativo ? Math.min(b.beamLen, b.beamTip) : (b.beamLen !== undefined ? b.beamLen : J.beam.length);
+    const g0 = J.beam.innerGap, span = Math.max(0, L - g0);
+    ctx.save();
+    ctx.translate(b.x, b.y); ctx.rotate(b.beamAng);
+    if (ativo) {
+      const g = ctx.createLinearGradient(g0, 0, L, 0);
+      g.addColorStop(0, glow); g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = g; ctx.fillRect(g0, -J.beam.halfWidth * 2.4, span, J.beam.halfWidth * 4.8);
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = glow;
+      ctx.fillRect(g0, -J.beam.halfWidth, span, J.beam.halfWidth * 2);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(g0, -J.beam.halfWidth * 0.45, span, J.beam.halfWidth * 0.9);
+      // ponta: brilha forte enquanto viaja para fora, e marca a sombra da rocha depois
+      const viajando = !b.beamExtended;
+      if (L < J.beam.length || viajando) {
+        ctx.globalAlpha = viajando ? 0.45 : 0.25;
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(L, 0, J.beam.halfWidth * (viajando ? 3.2 : 2.2), 0, TAU); ctx.fill();
+        ctx.globalAlpha = viajando ? 0.95 : 0.6;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(L, 0, J.beam.halfWidth * (viajando ? 1.6 : 1.5), 0, TAU); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      ctx.globalAlpha = 0.15 + 0.3 * k;
+      ctx.fillStyle = glow;
+      ctx.fillRect(g0, -2, span, 4);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // seta do sentido do giro: fica também enquanto o raio estica, porque é aí
+    // que o jogador decide para que lado sair
+    if (!ativo || !b.beamExtended) {
+      const rr = J.hoverDist * 0.55;
+      const a0 = b.beamAng, a1 = b.beamAng + b.beamDir * 0.9;
+      ctx.strokeStyle = glow; ctx.lineWidth = 3; ctx.globalAlpha = 0.35 + 0.4 * k;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, rr, Math.min(a0, a1), Math.max(a0, a1));
+      ctx.stroke();
+      const px = b.x + Math.cos(a1) * rr, py = b.y + Math.sin(a1) * rr;
+      const tang = a1 + b.beamDir * Math.PI / 2;
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.moveTo(px + Math.cos(tang) * 11, py + Math.sin(tang) * 11);
+      ctx.lineTo(px + Math.cos(tang + 2.5) * 9, py + Math.sin(tang + 2.5) * 9);
+      ctx.lineTo(px + Math.cos(tang - 2.5) * 9, py + Math.sin(tang - 2.5) * 9);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (b.state === "pullTel" || b.state === "pull") {
+    const ativo = b.state === "pull";
+    const k = ativo ? (b.t / J.pull.durationMs) : 1 - b.t / J.pull.telegraphMs;
+    ctx.strokeStyle = ativo ? "#ffd6f5" : glow;
+    ctx.lineWidth = ativo ? 2.5 : 2;
+    ctx.globalAlpha = ativo ? 0.55 : 0.2 + 0.3 * k;
+    for (let i = 0; i < 10; i++) {                      // arcos sugando para dentro
+      const a = (i / 10) * TAU + b.pulse * 0.6;
+      const rr = J.pull.radius * ((ativo ? k : 1) * 0.6 + 0.4);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, rr, a, a + 0.28);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = glow; ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.25;
+    ctx.beginPath(); ctx.arc(b.x, b.y, J.pull.radius, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- corpo: sino translúcido + tentáculos ondulando
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  const R = b.radius, breathe = 1 + Math.sin(b.pulse) * 0.07;
+
+  // tentáculos (atrás do sino)
+  ctx.strokeStyle = flash ? "#ffffff" : b.phase2 ? "#d9509f" : "#4f9ab5";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 9; i++) {
+    const off = (i / 8 - 0.5) * R * 1.5;
+    ctx.beginPath();
+    ctx.moveTo(off * 0.7, R * 0.35);
+    for (let s = 1; s <= 5; s++) {
+      const t = s / 5;
+      ctx.lineTo(off * 0.7 + Math.sin(b.pulse * 1.6 + i + t * 3) * 12 * t,
+                 R * 0.35 + t * R * 2.1);
+    }
+    ctx.stroke();
+  }
+  // braços orais mais grossos
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = flash ? "#ffffff" : b.phase2 ? "#ff7ac0" : "#6fc3d8";
+  for (let i = 0; i < 4; i++) {
+    const off = (i / 3 - 0.5) * R * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(off, R * 0.3);
+    ctx.quadraticCurveTo(off + Math.sin(b.pulse * 1.2 + i) * 18, R * 1.1,
+                         off + Math.sin(b.pulse * 1.2 + i) * 26, R * 1.7);
+    ctx.stroke();
+  }
+
+  // sino
+  ctx.save();
+  ctx.scale(breathe, 1 / breathe);
+  const g = ctx.createRadialGradient(0, -R * 0.3, R * 0.15, 0, 0, R);
+  if (flash) { g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#ffffff"); }
+  else if (b.phase2) { g.addColorStop(0, "#ffd9f2"); g.addColorStop(0.5, "#ff6fc0"); g.addColorStop(1, "rgba(180,40,120,0.55)"); }
+  else { g.addColorStop(0, "#e6fffa"); g.addColorStop(0.5, "#5fd9c4"); g.addColorStop(1, "rgba(40,120,150,0.55)"); }
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, R, R * 0.85, 0, Math.PI, TAU);      // cúpula
+  ctx.ellipse(0, 0, R, R * 0.35, 0, 0, Math.PI);        // borda inferior
+  ctx.fill();
+  // nervuras
+  ctx.strokeStyle = flash ? "#ffffff" : "rgba(255,255,255,0.45)";
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i < 5; i++) {
+    const x = -R + (i / 5) * R * 2;
+    ctx.beginPath(); ctx.moveTo(x, -R * 0.65); ctx.lineTo(x * 0.9, R * 0.25); ctx.stroke();
+  }
+  ctx.restore();
+
+  // núcleo pulsante: fica óbvio quando está carregando um ataque
+  const carregando = b.state.endsWith("Tel");
+  const coreR = R * 0.26 * (carregando ? 1.1 + Math.abs(Math.sin(b.pulse * 4)) * 0.5 : 1);
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, -R * 0.15, coreR * 2, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = flash ? "#ffffff" : glow;
+  ctx.beginPath(); ctx.arc(0, -R * 0.15, coreR, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawCrab() {
+  const b = boss, B = CONFIG.boss;
+  ctx.save();
+  // avisos de ataque no chão/água
+  if (b.state === "dashTel") {
+    const k = 1 - b.t / (b.phase2 ? B.dash.telegraphMsP2 : B.dash.telegraphMs);
+    ctx.globalAlpha = 0.18 + 0.3 * k;
+    ctx.fillStyle = "#ff7a4a";
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.dirY, b.dirX));
+    ctx.fillRect(0, -26, 520, 52); ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  if (b.state === "pinchTel" || b.state === "pinch") {
+    const R = b.phase2 ? B.pinch.radiusP2 : B.pinch.radius;
+    const tot = b.state === "pinchTel" ? (b.phase2 ? B.pinch.telegraphMsP2 : B.pinch.telegraphMs) : B.pinch.activeMs;
+    const k = 1 - b.t / tot;
+    ctx.globalAlpha = b.state === "pinch" ? 0.5 : 0.2 + 0.25 * k;
+    ctx.fillStyle = b.state === "pinch" ? "#ffd7a0" : "#ff9a5a";
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.state === "pinch" ? R : R * (0.4 + 0.6 * k), 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#ffbe80"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, TAU); ctx.stroke();
+  }
+  if (b.state === "callTel") {
+    const k = 1 - b.t / B.call.telegraphMs;
+    ctx.strokeStyle = "rgba(140,255,210,0.7)"; ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.arc(b.x, b.y, 30 + ((k * 140 + i * 45) % 140), 0, TAU); ctx.stroke();
+    }
+  }
+
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.ang);
+  const flash = b.flash > 0;
+  const body = flash ? "#ffffff" : b.phase2 ? "#d8492f" : "#b4643c";
+  // pernas
+  ctx.strokeStyle = flash ? "#ffffff" : "#7d4527"; ctx.lineWidth = 6;
+  for (let i = 0; i < 6; i++) {
+    const side = i < 3 ? -1 : 1, j = i % 3;
+    const a = side * (0.55 + j * 0.52) + Math.sin(b.clawT * 5 + i) * 0.12;
+    ctx.beginPath(); ctx.moveTo(-6, side * 10);
+    ctx.lineTo(Math.cos(Math.PI - a) * 30 - 6, Math.sin(Math.PI - a) * 34);
+    ctx.stroke();
+  }
+  // carapaça
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.ellipse(0, 0, b.radius, b.radius * 0.78, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.beginPath(); ctx.ellipse(-6, 4, b.radius * 0.7, b.radius * 0.45, 0, 0, TAU); ctx.fill();
+  // pinças (abrem no aviso da pinça)
+  const open = (b.state === "pinchTel" || b.state === "pinch") ? 0.9 : 0.25 + Math.sin(b.clawT * 3) * 0.08;
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(b.radius * 0.7, s * b.radius * 0.6);
+    ctx.rotate(s * -0.35);
+    ctx.fillStyle = flash ? "#ffffff" : b.phase2 ? "#ff6a48" : "#c9764a";
+    ctx.beginPath(); ctx.ellipse(10, 0, 18, 11, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#0e1a26";
+    ctx.save(); ctx.translate(20, 0); ctx.rotate(open * 0.6 * s);
+    ctx.fillRect(0, -3, 16, 5); ctx.restore();
+    ctx.save(); ctx.translate(20, 0); ctx.rotate(-open * 0.6 * s);
+    ctx.fillRect(0, -2, 16, 5); ctx.restore();
+    ctx.restore();
+  }
+  // olhos
+  ctx.fillStyle = "#ffe066";
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(b.radius * 0.6, s * 9, 4, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawBossBar() {
+  const b = boss;
+  const w = W * 0.6, x = (W - w) / 2, y = 16;
+  ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(x - 3, y - 3, w + 6, 20);
+  ctx.fillStyle = "#3a1414"; ctx.fillRect(x, y, w, 14);
+  ctx.fillStyle = b.kind === "eye" ? ["#6ad8ff", "#ffa04a", "#ff5a9e"][b.phase - 1]
+                : b.kind === "jelly" ? (b.phase2 ? "#ff6fc0" : "#5fd9c4")
+                : (b.phase2 ? "#ff5a3c" : "#e08a3c");
+  ctx.fillRect(x, y, w * clamp(b.hp / b.maxHp, 0, 1), 14);
+  ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, w, 14);
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.beginPath(); ctx.moveTo(x + w * 0.5, y); ctx.lineTo(x + w * 0.5, y + 14); ctx.stroke(); // marca dos 50%
+  ctx.fillStyle = "#ffdfc0"; ctx.font = "12px ui-monospace, monospace"; ctx.textAlign = "center";
+  const sufixo = b.kind === "eye" ? "  — FASE " + b.phase + "/3" : (b.phase2 ? "  — " + b.rageLabel : "");
+  ctx.fillText(b.name + sufixo, W / 2, y + 30);
+  if (b.kind === "eye") {   // marcas dos limiares de fase
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    for (const lim of [CONFIG.eye.phaseAt[1], CONFIG.eye.phaseAt[2]]) {
+      ctx.beginPath(); ctx.moveTo(x + w * lim, y); ctx.lineTo(x + w * lim, y + 14); ctx.stroke();
+    }
+  }
+  ctx.textAlign = "left";
+}
+
+// seta na borda da tela quando o boss está fora da visão (a arena do Olho é
+// maior que a janela, e sem isso você perde ele de vista)
+function drawBossOffscreenArrow() {
+  const b = boss;
+  const vx = b.x - cam.x, vy = b.y - cam.y, m = 34;
+  if (vx > m && vx < W - m && vy > m && vy < H - m) return;
+  const cx = W / 2, cy = H / 2;
+  const a = Math.atan2(vy - cy, vx - cx);
+  const px = clamp(cx + Math.cos(a) * W, m, W - m);
+  const py = clamp(cy + Math.sin(a) * H, m, H - m);
+  ctx.save();
+  ctx.translate(px, py); ctx.rotate(a);
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = b.kind === "eye" ? "#ff9ad8" : b.kind === "jelly" ? "#5fd9c4" : "#e08a3c";
+  ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-9, -9); ctx.lineTo(-9, 9); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  const dist = Math.round(Math.hypot(b.x - player.x, b.y - player.y));
+  ctx.font = "11px ui-monospace, monospace"; ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(230,240,255,0.7)";
+  ctx.fillText(dist + "m", px, py + 22);
+  ctx.textAlign = "left";
+}
+
+let fps = 60, fpsAcc = 0, fpsFrames = 0;
+
+function drawHud() {
+  ctx.font = "12px ui-monospace, monospace";
+  // vida
+  const hw = 220;
+  ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(12, H - 56, hw + 8, 18);
+  ctx.fillStyle = "#4a1a22"; ctx.fillRect(16, H - 52, hw, 10);
+  ctx.fillStyle = player.hp > 35 ? "#57d97a" : "#ff6161";
+  ctx.fillRect(16, H - 52, hw * clamp(player.hp / CONFIG.player.hp, 0, 1), 10);
+  ctx.fillStyle = "#dff0ff";
+  ctx.fillText("VIDA " + Math.ceil(player.hp), 16 + hw + 16, H - 43);
+
+  // dash
+  const dw = 120, k = 1 - clamp(player.dashCdMs / CONFIG.player.dash.cooldownMs, 0, 1);
+  ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(12, H - 32, dw + 8, 16);
+  ctx.fillStyle = "#14293d"; ctx.fillRect(16, H - 28, dw, 8);
+  ctx.fillStyle = k >= 1 ? "#7fe6ff" : "#3d6c8a"; ctx.fillRect(16, H - 28, dw * k, 8);
+  ctx.fillStyle = "#dff0ff";
+  ctx.fillText(k >= 1 ? "DASH PRONTO" : "DASH...", 16 + dw + 16, H - 20);
+
+  // contadores
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#dff0ff";
+  ctx.fillText("MORTOS: " + game.kills, W - 16, H - 40);
+  ctx.fillText("FPS: " + fps.toFixed(0), W - 16, H - 22);
+  if (projectiles.length) ctx.fillText("PROJETEIS: " + projectiles.length, W - 16, H - 58);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(210,232,255,0.55)";
+  ctx.fillText("WASD nadar · clique ou J estocar · ESPAÇO dash · B caranguejo · N água-viva · M olho (bullet hell) · R reiniciar", 16, 20);
+  // de onde vem a mira agora
+  const kb = player.aimMode === "keys";
+  ctx.fillStyle = kb ? "rgba(255,224,102,0.85)" : "rgba(210,232,255,0.45)";
+  ctx.fillText(kb ? "MIRA: TECLADO (WASD) — mexa o mouse para voltar ao cursor" : "MIRA: CURSOR", 16, 36);
+
+  if (game.dead) {
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff8f8f"; ctx.font = "34px ui-monospace, monospace";
+    ctx.fillText("VOCÊ AFUNDOU", W / 2, H / 2 - 6);
+    ctx.fillStyle = "#dff0ff"; ctx.font = "14px ui-monospace, monospace";
+    ctx.fillText("R para reiniciar · " + game.kills + " inimigos mortos", W / 2, H / 2 + 22);
+    ctx.textAlign = "left";
+  }
+}
+
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+
+  let sx = 0, sy = 0;
+  if (game.shakeMs > 0) { sx = rand(-1, 1) * game.shakeAmp; sy = rand(-1, 1) * game.shakeAmp; }
+  ctx.save();
+  ctx.translate(sx - cam.x, sy - cam.y);
+  drawRocks();
+  drawParticles();
+  for (const e of enemies) drawEnemy(e);
+  if (boss) drawBoss();
+  drawProjectiles();
+  drawPlayer();
+  ctx.restore();
+
+  if (boss) { drawBossBar(); drawBossOffscreenArrow(); }
+  drawHud();
+}
+
+// =============================================================================
+// laço principal: passo fixo com acumulador + hit-stop congelando a simulação
+// =============================================================================
+let last = performance.now(), acc = 0;
+
+function frame(now) {
+  let elapsed = now - last;
+  last = now;
+  if (elapsed > CONFIG.maxFrameMs) elapsed = CONFIG.maxFrameMs;
+  acc += elapsed;
+
+  fpsAcc += elapsed; fpsFrames++;
+  if (fpsAcc >= 400) { fps = (fpsFrames * 1000) / fpsAcc; fpsAcc = 0; fpsFrames = 0; }
+
+  while (acc >= DTMS) {
+    acc -= DTMS;
+    if (game.hitStopMs > 0) game.hitStopMs -= DTMS;  // simulação congelada
+    else step();
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+
+resetGame();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
