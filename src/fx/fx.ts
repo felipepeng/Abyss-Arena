@@ -26,20 +26,48 @@ export class Fx {
   }
 
   private react(e: SimEvent): void {
+    const b = this.bubbles;
     switch (e.t) {
       case "spearHit":
         // atrás do alvo, no sentido do empurrão
-        this.bubbles.emit(e.x - e.dirX * e.targetR, e.y - e.dirY * e.targetR, FX.spearHit.bubbles);
+        b.emit(e.x - e.dirX * e.targetR, e.y - e.dirY * e.targetR, FX.spearHit.bubbles);
         this.shake.add(FX.spearHit.shake.ms, FX.spearHit.shake.amp);
         break;
       case "enemyDied":
-        this.bubbles.emit(e.x, e.y, FX.enemyDied.bubbles, e.radius * FX.enemyDied.spreadScale);
+        b.emit(e.x, e.y, FX.enemyDied.bubbles, e.radius * FX.enemyDied.spreadScale);
         break;
       case "dash":
-        this.bubbles.emit(e.x, e.y, FX.dash.bubbles);
+        b.emit(e.x, e.y, FX.dash.bubbles);
         break;
       case "thrust":
-        this.bubbles.emit(e.x + e.dirX * FX.thrust.offset, e.y + e.dirY * FX.thrust.offset, FX.thrust.bubbles);
+        b.emit(e.x + e.dirX * FX.thrust.offset, e.y + e.dirY * FX.thrust.offset, FX.thrust.bubbles);
+        break;
+      case "playerHurt":
+        b.emit(e.x, e.y, FX.playerHurt.bubbles);
+        this.shake.add(FX.playerHurt.shake.ms, FX.playerHurt.shake.amp);
+        break;
+      case "playerDied":
+        this.shake.add(FX.playerDied.shake.ms, FX.playerDied.shake.amp);
+        break;
+      case "attackStart":
+        if (e.source === "fish") b.emit(e.x, e.y, FX.fishCharge.bubbles);
+        break;
+      case "projectilePopped":
+        b.emit(e.x, e.y, { ...FX.projectilePopped, color: e.color });
+        break;
+      case "projectileBurst":
+        b.emit(e.x, e.y, { ...FX.projectileBurst, color: e.color });
+        break;
+      case "projectileHit":
+        b.emit(e.x, e.y, { ...FX.projectileHit, color: e.color });
+        break;
+      case "rockEroded":
+        b.emit(e.x, e.y, FX.rockEroded.bubbles);
+        break;
+      case "pickup":
+        b.emit(e.x, e.y, FX.pickup.bubbles);
+        break;
+      case "telegraph":
         break;
     }
   }

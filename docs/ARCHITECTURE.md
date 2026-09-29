@@ -42,9 +42,11 @@ src/
     world.ts         tamanho do bloco, margem da colisão
     fx.ts            bolhas e tremor por evento
     palette.ts       paletas de fundo e rocha
-    dummy.ts         sacos de pancada da arena de teste (M1; saem no M2)
+    combat.ts        contato, teto do pool de inimigos, projéteis (teto, erosão)
+    spawn.ts         nascimento provisório por tempo e anel de depuração (até o M3)
     player.ts  spear.ts  camera.ts  pickups.ts  waves.ts
-    enemies/   fish.ts circler.ts hermit.ts urchin.ts jellyling.ts eel.ts watcher.ts lamprey.ts
+    enemies/   fish.ts circler.ts dummy.ts (saco de pancada, depuração)
+               hermit.ts urchin.ts jellyling.ts eel.ts watcher.ts lamprey.ts
     bosses/    crab.ts jelly.ts eye.ts
     maps/      rift.ts coral.ts abyss.ts
   sim/               simulação pura (determinística dada a semente)
@@ -55,7 +57,10 @@ src/
     physics.ts       integrador de nado (aceleração, arrasto implícito, teto)
     collision.ts     corpo × grade, separação por eixo com margem
     player.ts        nado, dash (com i-frames), máquina da lança, hitbox
-    enemies/         comportamentos dos inimigos (um arquivo por tipo) + runner genérico
+    enemies/         comportamentos dos inimigos (um arquivo por tipo) + runner genérico +
+                     registry.ts (tipo → EnemyDef); o saco de pancada é um tipo como os outros
+    spawner.ts       nascimento provisório por tempo (M2; sai com as ondas do M3)
+    debug.ts         ações de depuração que mexem na simulação (anel de projéteis)
     bosses/          runner genérico de chefe + ataques de cada chefe
     projectiles.ts   movimento, colisão, erosão
     pickups.ts       bolhas de cura
@@ -192,15 +197,24 @@ interface Body { x: number; y: number; vx: number; vy: number; prevX: number; pr
 
 interface Enemy extends Body {
   id: number; kind: EnemyKind; hp: number; maxHp: number;
-  state: string; stateT: number;          // estado atual e tempo restante nele
-  ang: number; prevAng: number;
-  flashMs: number; noDrop: boolean;       // noDrop = invocado por chefe
+  state: string; t: number;               // estado atual e tempo restante nele
+  stateMs: number;                        // duração com que o estado começou (progresso do aviso)
+  ang: number; prevAng: number; dirX: number; dirY: number;
+  flashMs: number; noDrop: boolean; dead: boolean;   // noDrop = invocado por chefe
   data: Record<string, number>;           // campos próprios do tipo (wob, orbitAng...)
 }
 ```
 
 - `enemies`, `projectiles`, `pickups` e `particles` são **pools** com remoção por swap-remove.
-  Nada de `filter` por passo (CONTEXTO §7.4, item 8).
+  Nada de `filter` por passo (CONTEXTO §7.4, item 8). O passo não aloca por projétil
+  (`tests/perf/allocation.test.ts` compara 0 e 300 projéteis).
+- **Objetos que vivem muitos passos nascem com os campos numéricos em `UNSET` (NaN)**, num literal
+  que lista todos os campos, e são reaproveitados campo a campo (`resetBody`). Um campo que nasce
+  com `0` e recebe frações fica com representação genérica no V8 e empacota cada número gravado;
+  espalhamento (`{ ...obj }`), `Object.assign`, `delete` e variáveis de módulo com números também
+  empacotam; `Math.hypot` aloca a cada chamada (use `len`). Tudo isso foi medido no Chrome com o
+  profiler de heap. O que sobra é o V8 empacotando números passados como argumento entre funções
+  não embutidas: alguns bytes por criatura por passo, que não vale distorcer o código para evitar.
 - A lista de alvos da lança é iterada **sem alocar** (inimigos e depois o chefe), sem
   `concat`.
 - IDs são inteiros crescentes por mundo; o `hitIds` da lança é um `Set<number>` limpo no início
@@ -344,11 +358,12 @@ com as entidades.
 
 ## 7. Render
 
-- **Camadas, na ordem:** fundo (cache) → rocha (cache) → partículas → pickups → projéteis de
-  baixo → avisos → criaturas → jogador (com a lança **por baixo** do corpo) → HUD (sem tremor) →
-  overlays de cena (fade, cartão de título, menus). As bolhas ficam sob as criaturas e a haste
-  da lança sob o corpo, como no protótipo: as bolhas do acerto nascem atrás do alvo, e a haste
-  começa a 6 px do centro do mergulhador.
+- **Camadas, na ordem:** fundo (cache) → rocha (cache) → partículas → pickups → criaturas (cada
+  uma com o próprio aviso) → projéteis → jogador (com a lança **por baixo** do corpo) → HUD (sem
+  tremor) → overlays de cena (fade, cartão de título, menus). É a ordem do protótipo: as bolhas
+  do acerto nascem atrás do alvo, os projéteis passam por cima das criaturas, o jogador fica
+  sempre visível por cima de tudo, e a haste começa a 6 px do centro do mergulhador. Avisos que
+  não pertencem a uma criatura (faixas e anéis dos chefes) entram entre pickups e criaturas.
 - **Cache em `OffscreenCanvas`:** o fundo é renderizado uma vez por mapa, numa altura igual à
   da tela. A rocha é renderizada no tamanho do mundo inteiro e só é redesenhada quando a grade
   muda (`Grid.version`: erosão, pilar dissolvido). No frame, só se copia a região da câmera. Hoje
@@ -447,6 +462,8 @@ Ligado por `?debug` na URL ou `F1`:
 | `F5` | forçar a próxima fase do chefe |
 | `F6` | regenerar o mapa com semente nova |
 | `F7` | câmera lenta (0,25×) |
+| `F8` | anel de projéteis em volta do jogador (testa o pool, o estouro pela lança e a erosão) |
+| `R` | reiniciar com a mesma semente (fora da depuração, só depois de morrer, até existir o menu do M6) |
 
 A semente atual aparece no overlay, para que um bug de mapa possa ser reproduzido.
 
@@ -474,6 +491,12 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
   os rastros em `tests/fixtures/prototype-traces.json`. `tests/sim/parity.test.ts` repete os
   mesmos roteiros na simulação nova e compara posição, velocidade e estado a cada passo (6 casas
   decimais). Ao portar um sistema com números de feel, acrescente um roteiro nos dois lados.
+  Para a IA, o gerador fixa o `Math.random` do protótipo em 0,5 e o teste fixa a RNG do mundo
+  no mesmo valor (`pinRng`). Os roteiros evitam encostar nas paredes: ali a colisão nova para o
+  corpo na face do bloco e a do protótipo o empurra 1 px por vez (§6.2), menos de 1 px de
+  diferença, coberta pelos testes de colisão.
+- **Alocação:** `tests/perf/allocation.test.ts` mede o crescimento do heap num trecho sem coleta
+  de lixo e garante que o passo não aloca por projétil (§5.2).
 
 ---
 

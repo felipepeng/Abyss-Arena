@@ -6,7 +6,7 @@ import type { Player } from "../sim/player";
 // HUD do jogador: vida e recarga do dash no canto inferior esquerdo, como no protótipo, e o
 // modo de mira. Não treme (é desenhado fora da transformação do mundo).
 
-export function drawPlayerHud(g: CanvasRenderingContext2D, p: Player): void {
+export function drawPlayerHud(g: CanvasRenderingContext2D, p: Player, kills: number): void {
   const H = VIEW.height;
   g.font = `12px ${FONT_FAMILY}`;
   g.textBaseline = "alphabetic";
@@ -31,6 +31,11 @@ export function drawPlayerHud(g: CanvasRenderingContext2D, p: Player): void {
   g.fillRect(16, H - 28, dw * k, 8);
   g.fillStyle = "#dff0ff";
   g.fillText(k >= 1 ? "DASH PRONTO" : "DASH...", 16 + dw + 16, H - 20);
+
+  g.textAlign = "right";
+  g.fillStyle = "#dff0ff";
+  g.fillText(`MORTOS: ${kills}`, VIEW.width - 16, H - 22);
+  g.textAlign = "left";
 
   const keys = p.aimMode === "keys";
   g.fillStyle = keys ? "rgba(255,224,102,0.85)" : "rgba(210,232,255,0.45)";

@@ -1,9 +1,10 @@
+import { len } from "../core/math";
 import { INPUT } from "../config/input";
 import { PLAYER } from "../config/player";
 import { SPEAR } from "../config/spear";
-import { makeBody, type Body } from "./body";
+import { resetBody, UNSET, type Body } from "./body";
 import { moveBody } from "./collision";
-import { hitTarget } from "./combat";
+import { hitEnemy } from "./combat";
 import { accelerate, applyDrag, clampSpeed } from "./physics";
 import type { World } from "./world";
 
@@ -67,21 +68,28 @@ export interface Player extends Body {
 }
 
 export function createPlayer(x: number, y: number): Player {
-  return {
-    ...makeBody(x, y, PLAYER.radius, PLAYER.radius * PLAYER.collScale),
-    aim: 0,
-    prevAim: 0,
-    aimMode: "mouse",
-    keyAim: 0,
-    hp: PLAYER.hp,
-    invulnMs: 0,
-    dashMs: 0,
-    dashCdMs: 0,
+  // Literal com todos os campos, sem espalhamento, nascendo em UNSET e preenchido em seguida:
+  // assim os campos numéricos ficam double desde o início (ver sim/body.ts).
+  const F = UNSET;
+  const p: Player = {
+    x: F, y: F, vx: F, vy: F, prevX: F, prevY: F, radius: F, collR: F, blockedX: false, blockedY: false,
+    aim: F, prevAim: F, aimMode: "mouse", keyAim: F, hp: F, invulnMs: F, dashMs: F, dashCdMs: F,
     spear: {
-      phase: "idle", t: 0, chargeMs: 0, charging: false, dirX: 1, dirY: 0,
-      reach: SPEAR.reach, damage: SPEAR.damage, hitIds: new Set(),
+      phase: "idle", t: F, chargeMs: F, charging: false, dirX: F, dirY: F, reach: F, damage: F,
+      hitIds: new Set(),
     },
   };
+  resetBody(p, x, y, PLAYER.radius, PLAYER.radius * PLAYER.collScale);
+  p.aim = p.prevAim = p.keyAim = 0;
+  p.hp = PLAYER.hp;
+  p.invulnMs = p.dashMs = p.dashCdMs = 0;
+  const sp = p.spear;
+  sp.t = sp.chargeMs = 0;
+  sp.dirX = 1;
+  sp.dirY = 0;
+  sp.reach = SPEAR.reach;
+  sp.damage = SPEAR.damage;
+  return p;
 }
 
 /** Nos primeiros `dash.invulnMs` do dash o jogador atravessa dano (GDD §4.2). */
@@ -103,7 +111,7 @@ export function stepPlayer(w: World, intent: PlayerIntent, dtMs: number): void {
 
   let mx = intent.moveX;
   let my = intent.moveY;
-  const ml = Math.hypot(mx, my);
+  const ml = len(mx, my);
   if (ml > 0) {
     mx /= ml;
     my /= ml;
@@ -256,18 +264,29 @@ function spearHitCheck(w: World): void {
   const midX = p.x + tip.dirX * tip.reach * back;
   const midY = p.y + tip.dirY * tip.reach * back;
 
-  for (const target of w.dummies) {
-    if (!target.alive || sp.hitIds.has(target.id)) continue;
-    const rr = target.radius + SPEAR.tipRadius;
-    const hit =
-      Math.hypot(target.x - tip.x, target.y - tip.y) <= rr ||
-      Math.hypot(target.x - midX, target.y - midY) <= rr;
+  // iteração direta no pool, sem montar lista de alvos (o protótipo fazia concat por passo)
+  const enemies = w.enemies;
+  for (let i = 0; i < enemies.count; i++) {
+    const e = enemies.get(i);
+    if (e.dead || sp.hitIds.has(e.id)) continue;
+    const rr = e.radius + SPEAR.tipRadius;
+    const hit = len(e.x - tip.x, e.y - tip.y) <= rr || len(e.x - midX, e.y - midY) <= rr;
     if (!hit) continue;
-    sp.hitIds.add(target.id);
-    hitTarget(w, target, sp.damage, tip.dirX, tip.dirY);
-    // hit-stop e recuo só quando acerta: errar não tem recompensa
+    sp.hitIds.add(e.id);
+    hitEnemy(w, e, sp.damage, tip.dirX, tip.dirY);
+    // hit-stop e recuo só quando acerta criatura: errar não tem recompensa
     w.hitStopMs = SPEAR.hitStopMs;
     p.vx = -tip.dirX * SPEAR.selfRecoil;
     p.vy = -tip.dirY * SPEAR.selfRecoil;
+  }
+
+  // a ponta também estoura projéteis, SEM hit-stop (regra 6): senão o anel de esporos
+  // engasgaria a simulação a cada bolinha
+  const shots = w.projectiles;
+  for (let i = 0; i < shots.count; i++) {
+    const s = shots.get(i);
+    if (s.dead || len(s.x - tip.x, s.y - tip.y) > s.r + SPEAR.tipRadius) continue;
+    s.dead = true;
+    w.events.push({ t: "projectilePopped", x: s.x, y: s.y, color: s.color });
   }
 }

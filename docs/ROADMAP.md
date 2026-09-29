@@ -8,8 +8,9 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M1 — Feel do jogador** (🟨 implementado; falta o teste lado a lado de quem joga).
-M0 pronto em 2026-09-29.
+**Marco atual: M3 — Fluxo de fase + Caranguejo** (não iniciado).
+M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
+contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
 
 Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ pronto
@@ -64,21 +65,33 @@ outro.
 
 ---
 
-## ⬜ M2 — Inimigos e combate
+## 🟨 M2 — Inimigos e combate
 
-- [ ] `EnemyDef` + runner genérico (movimento, colisão, contato, morte, drop).
-- [ ] Peixe e circulador portados para dados, com os mesmos números.
-- [ ] `sim/combat.ts`: funil de dano ao jogador, dano a inimigo, empurrão por raio, recuo.
-- [ ] Pool de projéteis (teto de 900), estouro pela lança, erosão com máscara de protegidos.
-- [ ] Pickups de cura (GDD §5).
-- [ ] Avisos visuais dos dois inimigos.
-- [ ] Morte do jogador (sem menu ainda: tecla de reinício de depuração).
-- [ ] Overlay de depuração: hitboxes e estados.
+- [x] `EnemyDef` + runner genérico (movimento, colisão, contato, morte, drop).
+- [x] Peixe e circulador portados para dados, com os mesmos números.
+- [x] `sim/combat.ts`: funil de dano ao jogador, dano a inimigo, empurrão por raio, recuo.
+- [x] Pool de projéteis (teto de 900), estouro pela lança, erosão com máscara de protegidos.
+- [x] Pickups de cura (GDD §5).
+- [x] Avisos visuais dos dois inimigos.
+- [x] Morte do jogador (sem menu ainda: tecla de reinício de depuração).
+- [x] Overlay de depuração: hitboxes e estados.
 
 **Pronto quando:** na arena de teste, com um spawner provisório, peixes e circuladores se
 comportam como no protótipo (serpenteio, órbita, avisos, investidas); acertar dispara os cinco
 efeitos de impacto; a cura cai, atrai e cura; nenhuma alocação por passo aparece no profiler
 com 100+ projéteis.
+
+**Estado (2026-09-29):**
+- Peixe e circulador batem com o **código do protótipo** passo a passo em 7 cenários (IA,
+  avisos, ataques, contato, funil de dano, invulnerabilidade, morte), com os sorteios fixados
+  dos dois lados.
+- Cura: cai, sobe, é atraída e cura (testes). O desenho dela ainda não foi visto em jogo.
+- Alocação: medida no Chrome com o profiler de heap. O passo **não aloca por projétil** (teste
+  com 0 contra 300). Sobram alguns bytes por criatura por passo, do V8 empacotando números
+  passados entre funções; a decisão e o que foi corrigido estão no ARCHITECTURE §5.2.
+- Diferença proposital do protótipo: um inimigo morto pela lança não age mais no passo em que
+  morre (no protótipo ele ainda podia causar dano de contato naquele passo).
+- Falta o teste lado a lado de quem joga.
 
 ---
 

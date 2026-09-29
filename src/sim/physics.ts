@@ -1,3 +1,4 @@
+import { len } from "../core/math";
 import type { Body } from "./body";
 
 // Integrador de nado. Tempo em segundos aqui (dt = passo / 1000), porque as taxas são por
@@ -19,7 +20,7 @@ export function applyDrag(b: Body, drag: number, dt: number): void {
 }
 
 export function clampSpeed(b: Body, max: number): void {
-  const s = Math.hypot(b.vx, b.vy);
+  const s = len(b.vx, b.vy);
   if (s > max) {
     b.vx = (b.vx / s) * max;
     b.vy = (b.vy / s) * max;

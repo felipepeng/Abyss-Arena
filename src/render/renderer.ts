@@ -4,14 +4,17 @@ import { lerp } from "../core/math";
 import type { Fx } from "../fx/fx";
 import type { World } from "../sim/world";
 import { Background } from "./background";
-import { drawDummy } from "./creatures/dummy";
+import { drawEnemy } from "./creatures/enemies";
 import { drawPlayer } from "./creatures/player";
 import { drawBubbles } from "./particles";
+import { drawPickups } from "./pickups";
+import { drawProjectiles } from "./projectiles";
 import { RockLayer } from "./rocks";
 
 // Orquestra as camadas do mundo. Só lê o estado; nunca escreve na simulação.
-// Ordem: fundo → rocha → bolhas → criaturas → jogador (lança por baixo do corpo). As bolhas
-// ficam sob as criaturas, como no protótipo: as do acerto nascem atrás do alvo.
+// Ordem, como no protótipo: fundo → rocha → bolhas → curas → criaturas (com os avisos) →
+// projéteis → jogador (lança por baixo do corpo). As bolhas do acerto nascem atrás do alvo;
+// os projéteis passam por cima das criaturas, e o jogador fica sempre visível por cima.
 // O HUD é desenhado fora daqui, sem tremor.
 
 export class WorldRenderer {
@@ -33,7 +36,12 @@ export class WorldRenderer {
     g.translate(fx.shake.offsetX() - camX, fx.shake.offsetY() - camY);
     this.rocks.draw(g, w.grid, camX, camY, VIEW.width, VIEW.height);
     drawBubbles(g, fx.bubbles, alpha);
-    for (const d of w.dummies) drawDummy(g, d, alpha);
+    drawPickups(g, w.pickups, alpha, w.timeMs);
+    for (let i = 0; i < w.enemies.count; i++) {
+      const e = w.enemies.get(i);
+      if (!e.dead) drawEnemy(g, e, alpha);
+    }
+    drawProjectiles(g, w.projectiles, alpha);
     drawPlayer(g, w.player, alpha);
     g.restore();
   }

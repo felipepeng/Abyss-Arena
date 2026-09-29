@@ -21,6 +21,9 @@ await page.goto(protoPath.href);
 const traces = await page.evaluate(() => {
   // arena aberta: só a borda de 2 blocos; jogador no centro; nada nasce
   function setup() {
+    // Sorteios fixos em 0,5 (serpenteio, órbita, cronômetros): o teste de paridade fixa a
+    // RNG da simulação nova no mesmo valor, e os dois lados ficam comparáveis passo a passo.
+    Math.random = () => 0.5;
     resetGame();
     grid.fill(0);
     for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++)
@@ -46,10 +49,13 @@ const traces = await page.evaluate(() => {
       mouse.viewY = player.y;   // mira sempre na horizontal, para a direita
       if (game.hitStopMs > 0) { game.hitStopMs -= DTMS; out.push(null); continue; }
       step();
+      const e = enemies[0];
       out.push({
         x: player.x, y: player.y, vx: player.vx, vy: player.vy,
         phase: player.spear.state, dashMs: player.dashMs, hitStop: game.hitStopMs,
-        ex: enemies[0] ? enemies[0].x : null, evx: enemies[0] ? enemies[0].vx : null,
+        hp: player.hp, invulnMs: player.invulnMs, dead: game.dead, enemies: enemies.length,
+        ex: e ? e.x : null, ey: e ? e.y : null, evx: e ? e.vx : null, evy: e ? e.vy : null,
+        estate: e ? e.state : null, et: e ? e.t : null, ehp: e ? e.hp : null,
       });
     }
     return out;
@@ -59,6 +65,18 @@ const traces = await page.evaluate(() => {
     const e = enemies[0];
     e.state = "inerte";   // nenhum ramo da IA: só teto de 118, arrasto e colisão
   };
+  const fishAt = (dx, dy) => () => spawnFish({ x: player.x + dx, y: player.y + dy });
+  // mesmos campos do spawnCircler, mas numa posição escolhida (ele sorteia o lugar)
+  const circlerAt = (dx, dy) => () => {
+    enemies.push({
+      id: game.nextId++, type: "circler", x: player.x + dx, y: player.y + dy, vx: 0, vy: 0,
+      radius: CONFIG.circler.radius, hp: CONFIG.circler.hp, maxHp: CONFIG.circler.hp,
+      state: "orbit", t: 0, orbitAng: Math.random() * Math.PI * 2, orbitDir: Math.random() < 0.5 ? -1 : 1,
+      dirX: 1, dirY: 0, flash: 0, ang: 0,
+    });
+  };
+  // estocadas repetidas, com carga curta
+  const poke = (every) => (i) => ({ mouseDown: i % every < 3, mousePressed: i % every === 0 });
   return {
     swim: run((i) => ({ keys: i < 30 ? ["KeyD"] : [] }), 90),
     swimDiagonal: run((i) => ({ keys: i < 20 ? ["KeyD", "KeyS"] : [] }), 60),
@@ -71,6 +89,16 @@ const traces = await page.evaluate(() => {
     keyAttack: run((i) => ({ keys: i === 0 ? ["KeyJ"] : [], pressed: i === 0 ? ["KeyJ"] : [] }), 40),
     dashCancelsRecovery: run((i) => ({ mouseDown: i === 0, mousePressed: i === 0, keys: i === 14 ? ["Space"] : [] }), 50),
     hitFish: run((i) => ({ mouseDown: i === 0, mousePressed: i === 0 }), 50, inertFish),
+    // inimigos: IA, avisos, ataques, contato, funil de dano e morte
+    fishAttacks: run(() => ({}), 240, fishAt(220, 0)),
+    fishWhileSwimming: run((i) => ({ keys: i < 40 ? ["KeyW"] : i < 80 ? ["KeyA", "KeyS"] : [] }), 240, fishAt(180, 90)),
+    fishFarAway: run(() => ({}), 60, fishAt(340, 0)),
+    circlerAttacks: run(() => ({}), 300, circlerAt(150, -40)),
+    // Os roteiros ficam longe das paredes: ali a colisão nova (encosta na face do bloco)
+    // difere de propósito da do protótipo (empurra 1 px por vez), ARCHITECTURE §6.2.
+    circlerWhileSwimming: run((i) => ({ keys: i < 60 ? ["KeyD"] : i < 100 ? ["KeyS"] : [] }), 300, circlerAt(-120, 60)),
+    killFish: run(poke(25), 200, fishAt(120, 0)),
+    killCircler: run(poke(25), 220, circlerAt(100, 0)),
   };
 });
 writeFileSync(outPath, JSON.stringify(traces));

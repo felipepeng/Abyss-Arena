@@ -1,15 +1,18 @@
-import type { DummyKind } from "../config/dummy";
 import { WORLD } from "../config/world";
+import type { EnemyKind } from "../sim/enemies/types";
 import { Cell, Grid } from "./grid";
 
-// Arena de teste do M1: borda e alguns blocos, maior que a tela para exercitar a câmera.
+// Arena de teste (M1–M2): borda e alguns blocos, maior que a tela para exercitar a câmera.
 // Não usa `MapDef` (que chega no M3). Tem de propósito uma parede de 1 bloco de espessura,
 // para ver que o dash não atravessa, e um corredor para sentir o deslize na parede.
 
 export interface TestArena {
   grid: Grid;
   playerStart: { x: number; y: number };
-  dummies: { kind: DummyKind; x: number; y: number }[];
+  /** Criaturas presentes desde o início (sacos de pancada). */
+  enemies: { kind: EnemyKind; x: number; y: number }[];
+  /** Liga o nascimento provisório por tempo. */
+  spawner: boolean;
 }
 
 // Tudo em blocos de 20 px. 72 × 40 blocos = 1440 × 800 px.
@@ -42,10 +45,10 @@ export function buildTestArena(): TestArena {
   return {
     grid,
     playerStart: { x: 22 * t, y: 20 * t },
-    dummies: [
-      { kind: "fish", x: 30 * t, y: 20 * t },
-      { kind: "fish", x: 44 * t, y: 12 * t },
-      { kind: "crab", x: 46 * t, y: 21 * t },
+    enemies: [
+      { kind: "dummy", x: 30 * t, y: 20 * t },
+      { kind: "dummyBig", x: 46 * t, y: 21 * t },
     ],
+    spawner: true,
   };
 }

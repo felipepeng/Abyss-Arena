@@ -41,4 +41,18 @@ export const FX = {
     /** O espalhamento da morte é proporcional ao raio da criatura. */
     spreadScale: 0.6,
   },
+  playerHurt: {
+    bubbles: { count: 14, color: "#ff9aa6", spread: 8, speed: 220 },
+    shake: { ms: 180, amp: 5 },
+  },
+  playerDied: { shake: { ms: 500, amp: 8 } },
+  /** O peixe começando a investida. */
+  fishCharge: { bubbles: { count: 8, color: "#ffd48a", spread: 5, speed: 160 } },
+  /** Bolhas na cor do projétil. */
+  projectilePopped: { count: 5, spread: 4, speed: 150 },
+  projectileBurst: { count: 4, spread: 3, speed: 90 },
+  projectileHit: { count: 6, spread: 4, speed: 140 },
+  rockEroded: { bubbles: { count: 3, color: "#7f9e94", spread: 7, speed: 120 } },
+  /** GDD §9.1. */
+  pickup: { bubbles: { count: 8, color: "#7dffb0", spread: 6, speed: 120 } },
 } as const;

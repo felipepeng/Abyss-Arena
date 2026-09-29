@@ -3,7 +3,7 @@ import { PLAYER } from "../../src/config/player";
 import { SPEAR } from "../../src/config/spear";
 import { inDashInvuln, isInvulnerable } from "../../src/sim/player";
 import { stepWorld } from "../../src/sim/world";
-import { aimRight, openWorld, speed, STEP, steps } from "./helpers";
+import { aimRight, firstEnemy, openWorld, speed, STEP, steps } from "./helpers";
 
 // Números do CONTEXTO §3 e §4 e a única mudança aprovada (GDD §4.2). A paridade passo a
 // passo com o protótipo está em parity.test.ts; aqui ficam as propriedades legíveis.
@@ -117,7 +117,7 @@ describe("lança", () => {
   });
 
   it("acerta cada alvo uma vez por estocada, com hit-stop e recuo", () => {
-    const w = openWorld({ dummies: [{ kind: "crab", x: 660, y: 600 }] });
+    const w = openWorld({ enemies: [{ kind: "dummyBig", x: 660, y: 600 }] });
     let hits = 0;
     let recoil = 0;
     stepWorld(w, aimRight(w, press), STEP);
@@ -139,7 +139,7 @@ describe("lança", () => {
     // recuo de 230 px/s para trás, já com um passo de arrasto
     expect(recoil).toBeLessThan(-200);
     // o passo do clique já conta 16,7 ms de carga (como no protótipo): dano 16,56, não 16
-    expect(w.dummies[0]?.hp).toBeCloseTo(420 - w.player.spear.damage, 9);
+    expect(firstEnemy(w).hp).toBeCloseTo(420 - w.player.spear.damage, 9);
     expect(w.player.spear.damage).toBeCloseTo(SPEAR.damage + SPEAR.damageChargeBonus * (STEP / SPEAR.chargeMaxMs), 9);
   });
 
@@ -153,8 +153,9 @@ describe("lança", () => {
     }
   });
 
-  it("uma estocada carregada mata um peixe de uma vez (36 > 34)", () => {
-    const w = openWorld({ dummies: [{ kind: "fish", x: 680, y: 600 }] });
+  it("uma estocada carregada mata um alvo com a vida do peixe de uma vez (36 > 34)", () => {
+    const w = openWorld({ enemies: [{ kind: "dummy", x: 680, y: 600 }] });
+    let deaths = 0;
     stepWorld(w, aimRight(w, press), STEP);
     for (let i = 0; i < 80; i++) {
       if (w.hitStopMs > 0) {
@@ -162,16 +163,18 @@ describe("lança", () => {
         continue;
       }
       stepWorld(w, aimRight(w, { attackHeld: i < 40 }), STEP);
+      deaths += w.events.list.filter((e) => e.t === "enemyDied").length;
     }
-    expect(w.dummies[0]?.alive).toBe(false);
+    // o saco de pancada "morre" e volta cheio: a morte aparece como evento
+    expect(deaths).toBe(1);
   });
 });
 
 describe("mundo", () => {
   it("é determinístico: mesma semente e mesmas entradas dão o mesmo estado", () => {
     const run = () => {
-      const w = openWorld({ dummies: [{ kind: "fish", x: 660, y: 600 }] });
-      steps(w, 200, (w, i) =>
+      const w = openWorld({ enemies: [{ kind: "fish", x: 760, y: 600 }, { kind: "circler", x: 500, y: 450 }], spawner: true });
+      steps(w, 1200, (w, i) =>
         aimRight(w, {
           moveX: i % 50 < 25 ? 1 : -1,
           moveY: i % 30 < 10 ? 1 : 0,
@@ -182,7 +185,8 @@ describe("mundo", () => {
         }),
       );
       const p = w.player;
-      return [p.x, p.y, p.vx, p.vy, p.spear.phase, w.dummies[0]?.hp, w.camera.x, w.camera.y];
+      const foes = Array.from({ length: w.enemies.count }, (_, i) => w.enemies.get(i)).map((e) => [e.kind, e.x, e.y, e.hp, e.state]);
+      return [p.x, p.y, p.vx, p.vy, p.hp, p.spear.phase, w.camera.x, w.camera.y, foes, w.projectiles.count, w.pickups.count];
     };
     expect(run()).toEqual(run());
   });

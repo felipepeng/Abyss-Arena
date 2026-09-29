@@ -18,6 +18,7 @@ export type Action =
   | "debugBossPhase"
   | "debugRegenMap"
   | "debugSlowMo"
+  | "debugProjectiles"
   | "debugCrab"
   | "debugJelly"
   | "debugEye"
@@ -39,6 +40,7 @@ export const BINDINGS: Bindings<Action> = {
     debugBossPhase: ["F5"],
     debugRegenMap: ["F6"],
     debugSlowMo: ["F7"],
+    debugProjectiles: ["F8"],
     debugCrab: ["KeyB"],
     debugJelly: ["KeyN"],
     debugEye: ["KeyM"],

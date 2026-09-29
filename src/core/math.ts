@@ -7,7 +7,11 @@ export const clamp = (v: number, lo: number, hi: number): number =>
 
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-export const len = (x: number, y: number): number => Math.hypot(x, y);
+/**
+ * Comprimento de (x, y). Não use `Math.hypot` em código que roda por passo: no V8 ele aloca a
+ * cada chamada (medido em tests/perf), e com centenas de projéteis isso vira lixo constante.
+ */
+export const len = (x: number, y: number): number => Math.sqrt(x * x + y * y);
 
 /** Menor diferença assinada de `a` para `b`, em [−π, π). */
 export function angDiff(a: number, b: number): number {
