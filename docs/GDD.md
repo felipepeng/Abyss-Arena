@@ -8,7 +8,9 @@ organizado, veja [`ARCHITECTURE.md`](ARCHITECTURE.md); para a ordem de construç
 Convenções: tempos em **ms**, velocidades em **px/s**, acelerações em **px/s²**, ângulos em
 **radianos**.
 
-Seções marcadas com **🟡 Proposta** ainda não foram validadas em jogo e podem mudar.
+As propostas que antes estavam marcadas com 🟡 (ondas, cura, inimigos exclusivos e os mapas do Leito
+e do Coral) foram **aprovadas para a v1** no M8, com os números atuais. Continuam sujeitas a ajuste
+depois de jogadas: qualquer mudança é normal, com o número no `config/` e o motivo aqui.
 
 ---
 
@@ -107,7 +109,7 @@ Substituem o spawner por tempo do protótipo (CONTEXTO §5.3).
 - Inimigos **estáticos** (Ouriço) têm posições fixas no mapa, que não passam por zona.
 - Um indicador no HUD mostra quantos inimigos faltam na onda.
 
-### 3.2 Composição 🟡 Proposta
+### 3.2 Composição
 
 | Mapa | Onda 1 | Onda 2 | Onda 3 |
 |---|---|---|---|
@@ -156,8 +158,8 @@ protótipo rodando o código original. Os "≈89 px" que o CONTEXTO registrava e
 - Os 40 ms finais sem invulnerabilidade existem de propósito: um dash mal cronometrado ainda
   termina dentro do perigo. Continua sendo posicionamento com uma margem, não um botão de
   imunidade.
-- **Consequência:** o bullet hell do Olho foi calibrado sem essa ferramenta. Rever a densidade
-  dele no M8 (§8.3).
+- **Consequência:** o bullet hell do Olho foi calibrado sem essa ferramenta. Medido no M8 (§8.3):
+  a invulnerabilidade quase não muda a pressão dele, então a densidade ficou como está.
 
 ### 4.3 Lança
 
@@ -199,7 +201,7 @@ As teclas `B`, `N`, `M` e `R` do protótipo viram atalhos do modo de depuração
 
 ---
 
-## 5. Cura 🟡 Proposta
+## 5. Cura
 
 Inimigos comuns podem soltar uma **bolha de cura** ao morrer.
 
@@ -254,7 +256,7 @@ Detalhes completos no CONTEXTO §5.
 jogador: avançam devagar (40 e 70 px/s) e passam a perseguir de verdade quando entram no raio.
 É uma mudança em relação ao protótipo, onde o peixe parava.
 
-### 6.2 Inimigos exclusivos 🟡 Proposta
+### 6.2 Inimigos exclusivos
 
 Cada mapa acrescenta dois inimigos, que antecipam a gramática do chefe daquele mapa.
 
@@ -381,7 +383,7 @@ elementos menores. A semente é sorteada no início da fase e **mantida ao tenta
 Todo mapa define uma **máscara de blocos protegidos**, que a erosão nunca destrói (a borda e os
 blocos estruturais).
 
-### 7.1 Leito das Fendas — Caranguejo 🟡 Proposta
+### 7.1 Leito das Fendas — Caranguejo
 
 > **LEITO DAS FENDAS** — 40 m
 > *Algo arrasta as pinças no escuro.*
@@ -408,7 +410,7 @@ blocos estruturais).
   | Rocha corpo / topo / luz | `#5a4632` / `#7a6040` / `#b89a64` |
   | Colunas de luz | `#ffe6b0`, alpha 0,06 |
 
-### 7.2 Jardim de Corais Luminosos — Água-viva 🟡 Proposta
+### 7.2 Jardim de Corais Luminosos — Água-viva
 
 > **JARDIM DE CORAIS LUMINOSOS** — 120 m
 > *A luz aqui não vem de cima.*
@@ -522,9 +524,19 @@ Pausa entre ataques: 700 → 520 → 380 ms.
 **Mudanças em relação ao protótipo:**
 - O Olho **não troca a arena** ao nascer: o Fosso já é a arena dele, e as ondas acontecem nela.
 - O jogador **não** recupera a vida quando ele aparece (§2.2).
-- **A revisar no M8:** com a invulnerabilidade do dash, cerco e espiral podem ficar fáceis
-  demais. Candidatos a ajuste: mais projéteis no cerco, menos intervalo na espiral. Medir antes
-  de mexer.
+- **Revisado no M8, sem mudança:** o receio era que a invulnerabilidade do dash deixasse o cerco
+  e a espiral fáceis demais. Medido com o jogador-robô (`npm run balance`; 12 sementes, 60 s por
+  fase do chefe, vida do chefe travada em 90%, 50% e 20%), o dano por minuto **com** os 100 ms de
+  invulnerabilidade ficou dentro de ±8% do dano **sem** ela, em todos os níveis de habilidade,
+  inclusive num robô que usa o dash como escudo no instante exato do impacto (o teto do que a
+  invulnerabilidade permite: −7% e −2%). A pressão sobe com a fase como deveria (do robô
+  veterano, ~120, ~270 e ~360 de dano por minuto nas fases 1, 2 e 3). O dash tem recarga de
+  1200 ms, então protege de um tiro a cada 1,2 s; não é uma ferramenta que apague o padrão. **Ressalva:**
+  o robô joga pior que uma pessoa; um jogador que decora os padrões pode fazer mais com o dash.
+  Se o Olho parecer fácil jogando, os candidatos continuam sendo mais projéteis no cerco e menos
+  intervalo na espiral.
+- **Pico de projéteis:** numa luta contra o Olho o robô viu até 159 projéteis vivos (fase 3), longe
+  do teto de 900. O jogo segue em 60 fps mesmo com 640 projéteis vivos (Chrome e Edge).
 - **Medido no M4:** travado atrás de um pilar por 60 s, o jogador leva ~137 de dano na fase 1 e
   ~274 na fase 2 no Fosso novo, contra 336 e 872 no protótipo (pilares sorteados). Os pilares
   desenhados protegem mais. Considerar junto com o ponto acima.
@@ -645,9 +657,18 @@ depuração ligada.
 
 ## 13. Questões em aberto
 
-1. Balanceamento da cura: 12 HP e as chances da tabela do §5 são chutes. Medir o HP médio com
-   que o jogador chega ao chefe.
-2. Aprovar ou ajustar os mapas (§7.1, §7.2) e os inimigos exclusivos (§6.2).
-3. A densidade do Olho com o dash invulnerável (§8.3).
-4. A composição das ondas (§3.2): a onda 3 do Fosso tem 17 inimigos. Talvez seja demais.
-5. A vida da Lampreia: 18 ou 16 (§6.2).
+Nenhuma bloqueia a v1. Decididas no M8 (2026-09-29):
+
+1. **Cura:** 12 HP por bolha e as chances da tabela do §5 ficam. Ao longo das 3 ondas de um mapa
+   as bolhas podem render de 71 a 82 HP (Leito 71, Coral 79, Fosso 82) se o jogador pegar todas;
+   o jogador-robô, que joga pior que uma pessoa, chegou ao chefe com ~50 de vida. Sem jogar, mexer
+   nisso seria chute.
+2. **Mapas e inimigos exclusivos:** aprovados como estão (§6.2, §7.1, §7.2).
+3. **Densidade do Olho com o dash invulnerável:** medida e mantida (§8.3).
+4. **Onda 3 do Fosso (17 inimigos):** mantida. O teto de 6 vivos ao mesmo tempo segura o pico, e é
+   a última fase antes do Olho. Se cansar jogando, o corte natural são as lampreias (8 → 5).
+5. **Vida da Lampreia:** 18. Sobrevive a uma estocada sem carga (16) e morre na segunda; a estocada
+   carregada a mata na hora.
+
+**Adiadas para depois da v1:** rebalancear tudo isso com base em jogar de verdade, e um
+jogador-robô melhor (o atual não vence as fases; ver ARCHITECTURE §10.2).

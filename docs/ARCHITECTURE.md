@@ -109,8 +109,11 @@ src/
     cheats.ts        pular onda, invocar chefe, invencível
 tests/               Vitest, espelhando src/sim e src/world
   fixtures/          rastros gravados do protótipo (paridade)
-tools/               scripts de desenvolvimento (gravar rastros do protótipo; `eye-preview.html`
-                     desenha o Olho em vários ângulos e fases, para ajustar a arte sem pilotar até o chefe)
+tests/balance/       bancada de equilíbrio (M8), `npm run balance`: jogador-robô, luta contra o Olho,
+                     custo do passo, economia de cura. Imprime tabelas; não roda no `npm run test`
+tools/               scripts de desenvolvimento (gravar rastros do protótipo) e páginas de prévia:
+                     `eye-preview`, `enemy-preview`, `scenes-preview` (a arte e as telas sem jogar até
+                     elas) e `audio-check` (renderiza os sons num OfflineAudioContext e mede o sinal)
 index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox (§7)
 public/              arquivos estáticos (favicon)
 prototipo/           o protótipo original, referência de paridade
@@ -578,6 +581,12 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
   diferença, coberta pelos testes de colisão.
 - **Alocação:** `tests/perf/allocation.test.ts` mede o crescimento do heap num trecho sem coleta
   de lixo e garante que o passo não aloca por projétil (§5.2).
+- **Equilíbrio (`npm run balance`):** `tests/balance/bot.ts` é um jogador-robô (três níveis de
+  reação, com e sem dash de esquiva). **Ele não é um jogador de verdade** e joga pior que um
+  humano em quase tudo (não lê o desenho, não improvisa): serve para comparar cenários entre si
+  (a mesma habilidade, com e sem uma mudança) e para achar o impossível e o trivial, não para
+  dizer se o jogo é justo. `bossPressure` trava o chefe numa fração de vida e mede o dano por
+  minuto que o robô toma; `withDashInvuln` troca a invulnerabilidade do dash por um trecho.
 
 ---
 

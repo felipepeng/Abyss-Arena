@@ -8,7 +8,8 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M8 — Polimento e balanceamento** (não iniciado). M3 a M7 implementados; falta jogá-los à mão.
+**Marco atual: M8 — Polimento e balanceamento** (🟨: o que dá para medir sem jogar está feito; falta
+jogar a Descida à mão, testar no Firefox e publicar). M3 a M7 implementados; falta jogá-los à mão.
 M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
 contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
@@ -261,19 +262,42 @@ engasga o áudio.
 
 ---
 
-## ⬜ M8 — Polimento e balanceamento → **v1**
+## 🟨 M8 — Polimento e balanceamento → **v1**
 
-- [ ] Rever o Olho com o dash invulnerável (GDD §8.3). Medir antes e depois.
-- [ ] Balancear a cura: medir o HP médio na chegada a cada chefe.
-- [ ] Ajustar a composição das ondas (a onda 3 do Fosso em especial) e a vida da Lampreia.
-- [ ] Decidir e registrar no GDD o que ficou das propostas 🟡.
-- [ ] Revisar as questões em aberto do GDD §13.
-- [ ] Desempenho: 60 FPS estáveis no pico de projéteis do Olho.
-- [ ] Build de produção testado em Chrome, Firefox e Edge.
+- [x] Rever o Olho com o dash invulnerável (GDD §8.3). Medir antes e depois.
+- [x] Balancear a cura: medir o HP médio na chegada a cada chefe.
+- [x] Ajustar a composição das ondas (a onda 3 do Fosso em especial) e a vida da Lampreia.
+- [x] Decidir e registrar no GDD o que ficou das propostas 🟡.
+- [x] Revisar as questões em aberto do GDD §13.
+- [x] Desempenho: 60 FPS estáveis no pico de projéteis do Olho.
+- [ ] Build de produção testado em Chrome, Firefox e Edge. **Chrome e Edge feitos; falta o Firefox.**
+- [ ] Build publicada.
 
 **Pronto quando:** a Descida pode ser vencida por um jogador que conhece os padrões, sem
 depender de sorte; o GDD §13 está vazio ou só com itens explicitamente adiados para depois da
 v1; build publicada.
+
+**Estado (2026-09-29):**
+- **Decisões (GDD §13, fechado):** as propostas 🟡 foram aprovadas como estão; Lampreia com 18 de
+  vida; onda 3 do Fosso mantida em 17; cura mantida em 12 HP. Nenhum número do jogo mudou.
+- **Olho × dash invulnerável:** medido com a bancada (`npm run balance`, 12 sementes, 60 s por
+  fase). Com os 100 ms de invulnerabilidade o dano por minuto muda no máximo ±8% em relação a sem
+  ela, inclusive com um robô que usa o dash como escudo no instante perfeito (−7%). Sem mudança no
+  Olho. Detalhes no GDD §8.3.
+- **Cura:** as ondas de um mapa rendem de 71 a 82 HP possíveis (Leito 71, Coral 79, Fosso 82).
+- **Desempenho:** o passo da simulação custa 40 µs com 895 projéteis (0,24% do quadro); numa luta
+  real o pico foi 159 projéteis. No Chrome e no Edge, com ~640 projéteis vivos, 60 fps estáveis
+  e ~0,9 ms por quadro (em renderização por software, o pior caso).
+- **Navegadores:** o bundle de produção, servido de uma subpasta (`base: "./"`), abre, desenha,
+  destrava o áudio e joga sem erros no Chrome e no Edge. **O Firefox não está instalado nesta
+  máquina e não foi testado.**
+- **Polimento:** o jogo pausa sozinho quando a janela perde o foco; favicon; README e CLAUDE.md
+  atualizados.
+- **O que a bancada NÃO diz:** o jogador-robô não vence nenhuma fase (joga pior que uma pessoa),
+  então "a Descida é vencível por quem conhece os padrões" **não foi verificado**. Só jogar diz.
+  Bugs que a bancada não achou não estão descartados.
+- **Falta:** jogar a Descida inteira à mão (e os testes lado a lado do M1–M6), Firefox, e publicar.
+  Publicar depende de onde: `dist/` funciona em qualquer hospedagem estática.
 
 ---
 

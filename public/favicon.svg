@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="75%">
+      <stop offset="0" stop-color="#14465c"/>
+      <stop offset="1" stop-color="#03080f"/>
+    </radialGradient>
+    <radialGradient id="sclera" cx="50%" cy="50%" r="50%">
+      <stop offset="0.2" stop-color="#f2e8ff"/>
+      <stop offset="0.75" stop-color="#c8b4dd"/>
+      <stop offset="1" stop-color="#5a3a78"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="url(#bg)"/>
+  <circle cx="32" cy="33" r="21" fill="url(#sclera)" stroke="#3a1a4e" stroke-width="3"/>
+  <circle cx="34" cy="34" r="11" fill="#6ad8ff" stroke="#1f4a66" stroke-width="1.5"/>
+  <circle cx="35" cy="35" r="6" fill="#0a0410"/>
+  <circle cx="31" cy="30" r="2.4" fill="#ffffff" opacity="0.8"/>
+</svg>

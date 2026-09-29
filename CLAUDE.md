@@ -20,14 +20,14 @@ mudar, atualize o GDD **na mesma tarefa**.
 
 ## Stack e comandos
 
-TypeScript (`strict`) + Vite + Vitest, com Canvas 2D e sem engine. Os comandos passam a existir
-a partir do marco **M0**:
+TypeScript (`strict`) + Vite + Vitest, com Canvas 2D, Web Audio e sem engine:
 
 ```
 npm run dev        # servidor de desenvolvimento
 npm run build      # build de produção
 npm run test       # Vitest
 npm run typecheck  # tsc --noEmit
+npm run balance    # bancada de equilíbrio (simulações que imprimem tabelas; fora do npm run test)
 ```
 
 ## Convenções

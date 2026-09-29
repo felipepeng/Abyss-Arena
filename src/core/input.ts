@@ -78,6 +78,14 @@ export class Input<A extends string> {
     this.hasMouse = true;
   }
 
+  /**
+   * Aciona uma ação como se a tecla tivesse sido apertada agora, sem tecla nenhuma (a pausa
+   * automática ao perder o foco). Vale só até o fim do próximo passo, como qualquer toque.
+   */
+  trigger(action: A): void {
+    this.pressed.add(action);
+  }
+
   /** Solta tudo. Usado quando a janela perde o foco, para nenhuma tecla ficar presa. */
   releaseAll(): void {
     this.keysDown.clear();

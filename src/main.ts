@@ -8,6 +8,7 @@ import { AudioEngine } from "./audio/engine";
 import { Settings } from "./core/settings";
 import { DebugOverlay } from "./debug/overlay";
 import type { App } from "./scenes/app";
+import { pauseIfPlaying } from "./scenes/autopause";
 import { GameScene } from "./scenes/game";
 import { SceneManager } from "./scenes/manager";
 import { TitleScene } from "./scenes/title";
@@ -46,6 +47,11 @@ const audio = new AudioEngine(settings);
 // clique cria o contexto de áudio (e a trilha que as cenas já pediram começa aí).
 for (const type of ["keydown", "pointerdown"] as const) window.addEventListener(type, () => audio.unlock());
 document.addEventListener("visibilitychange", () => audio.setHidden(document.hidden));
+// perder o foco no meio da luta pausa o jogo
+window.addEventListener("blur", () => pauseIfPlaying(app));
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseIfPlaying(app);
+});
 const app: App = { input, scenes, debug, settings, audio, nextSeed };
 
 // O jogo abre no título. Atalhos de desenvolvimento, que pulam os menus:
