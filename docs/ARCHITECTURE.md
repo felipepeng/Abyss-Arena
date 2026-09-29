@@ -32,10 +32,12 @@ src/
     loop.ts          passo fixo 60 Hz + acumulador + alpha de interpolação
     rng.ts           RNG com semente (mulberry32 ou similar), instanciável
     math.ts          clamp, lerp, angLerp, len, vetores
-    input.ts         teclado/mouse → AÇÕES (move, aim, attack, dash, pause...)
+    input.ts         teclado/mouse → AÇÕES, genérico: as ações e teclas vêm de config/input.ts
     events.ts        barramento de eventos da simulação (hit, hurt, death, telegraph...)
     pool.ts          pool de objetos com swap-remove
   config/            todo número de ajuste, separado por domínio
+    system.ts        resolução, passo fixo, teto por frame, fade, fonte
+    input.ts         ações do jogo e atalhos (jogo + depuração)
     player.ts  spear.ts  camera.ts  particles.ts  pickups.ts  waves.ts
     enemies/   fish.ts circler.ts hermit.ts urchin.ts jellyling.ts eel.ts watcher.ts lamprey.ts
     bosses/    crab.ts jelly.ts eye.ts
@@ -74,13 +76,16 @@ src/
   scenes/
     manager.ts       pilha de cenas + fades
     title.ts  arenaSelect.ts  controls.ts  game.ts  pause.ts  result.ts
+    sandbox.ts       provisória do M0 (teste de entrada e de fade); sai quando game.ts existir
   ui/
     hud.ts  menu.ts  titleCard.ts  text.ts
   debug/
     overlay.ts       hitboxes, estados, velocidades, FPS
     cheats.ts        pular onda, invocar chefe, invencível
 tests/               Vitest, espelhando src/sim e src/world
-public/              index.html estático, favicon
+index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox
+public/              arquivos estáticos (favicon)
+prototipo/           o protótipo original, referência de paridade
 ```
 
 **Regra de dependência:** `core` ← `config` ← `world` ← `sim` ← (`render`, `audio`, `fx`,
@@ -110,7 +115,9 @@ frame(now):
   render desenha `lerp(prev, cur, alpha)`. Isso resolve a repetição de quadros a 144 Hz
   (CONTEXTO §9).
 - **Hit-stop mora no laço**, como no protótipo: congela física, cronômetros, partículas e câmera
-  igualmente. As partículas também usam passo fixo.
+  igualmente. As partículas também usam passo fixo. **Durante o hit-stop o alpha é 1**: com o
+  alpha do acumulador, a imagem oscilaria entre o passo anterior e o atual em vez de parar.
+  O hit-stop é consultado pelo gancho `consumeHitStop` da cena do topo (`core/loop.ts`).
 - **Pausa** é da cena, não do laço: a cena de jogo simplesmente não chama `step` enquanto a
   pausa está por cima.
 - **`resetGame` nunca roda dentro de um handler de evento DOM.** A entrada só marca intenções;

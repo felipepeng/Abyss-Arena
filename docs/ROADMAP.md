@@ -8,27 +8,27 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M0 — Fundação** (não iniciado).
+**Marco atual: M1 — Feel do jogador** (não iniciado). M0 pronto em 2026-09-29.
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
 
 Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ pronto
 
 ---
 
-## ⬜ M0 — Fundação
+## ✅ M0 — Fundação
 
 Infraestrutura sem gameplay.
 
-- [ ] Projeto Vite + TypeScript `strict` (`noUnusedLocals`, `noUnusedParameters`) + Vitest.
-- [ ] Scripts `dev`, `build`, `test` e `typecheck`.
-- [ ] Canvas interno de 960 × 540, escalado com letterbox.
-- [ ] `core/loop.ts`: passo fixo de 60 Hz, teto de 100 ms, alpha de interpolação, gancho de
+- [x] Projeto Vite + TypeScript `strict` (`noUnusedLocals`, `noUnusedParameters`) + Vitest.
+- [x] Scripts `dev`, `build`, `test` e `typecheck`.
+- [x] Canvas interno de 960 × 540, escalado com letterbox.
+- [x] `core/loop.ts`: passo fixo de 60 Hz, teto de 100 ms, alpha de interpolação, gancho de
       hit-stop.
-- [ ] `core/rng.ts` com semente; `core/math.ts`; `core/pool.ts` com swap-remove.
-- [ ] `core/input.ts`: teclado e mouse → ações; mouse em coordenadas de tela.
-- [ ] `core/events.ts`: buffer de eventos por passo.
-- [ ] Gerenciador de cenas mínimo com fade.
-- [ ] Overlay de depuração com FPS e a semente (`F1`).
+- [x] `core/rng.ts` com semente; `core/math.ts`; `core/pool.ts` com swap-remove.
+- [x] `core/input.ts`: teclado e mouse → ações; mouse em coordenadas de tela.
+- [x] `core/events.ts`: buffer de eventos por passo.
+- [x] Gerenciador de cenas mínimo com fade.
+- [x] Overlay de depuração com FPS e a semente (`F1`).
 
 **Pronto quando:** `npm run dev` abre uma tela que mostra FPS e a ação ativa de cada tecla;
 `npm run test` passa com testes de `rng` (determinismo) e `pool`; `npm run typecheck` e
