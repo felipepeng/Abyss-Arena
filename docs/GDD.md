@@ -589,6 +589,11 @@ de arquivos numa versão futura, então o sistema de áudio precisa aceitar as d
 
 Todo som tem pequena variação aleatória de altura (±5%) para não cansar.
 
+Implementação (M7): além da tabela, tocam a morte do jogador, a entrada do chefe, a troca de fase
+dele e a batida da investida numa formação. Só os **chefes** têm som de aviso (11 ao todo, um por
+ataque); os avisos dos inimigos comuns são visuais. A "estocada carregada pronta" é um tom que
+abre ao apertar o ataque, sobe durante os 600 ms da carga e corta quando a estocada sai.
+
 ### 10.2 Música (procedural)
 
 - Uma trilha gerada por mapa: pads graves, pulso lento, escala própria de cada mapa (mais

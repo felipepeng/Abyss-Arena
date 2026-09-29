@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SilentAudio } from "../../src/audio/api";
 import { BINDINGS } from "../../src/config/input";
 import { PLAYER } from "../../src/config/player";
 import { RESULT } from "../../src/config/ui";
@@ -32,6 +33,7 @@ function makeApp(): App & { seeds: number[] } {
     scenes: new SceneManager(FADE, "#000"),
     debug: { enabled: false },
     settings: new Settings(),
+    audio: new SilentAudio(),
     nextSeed: () => {
       seeds.push(next);
       return next++;

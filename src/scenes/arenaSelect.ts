@@ -22,7 +22,11 @@ export class ArenaSelectScene implements Scene {
       onSelect: () => startFree(app, map),
     }));
     items.push({ kind: "button", label: "Voltar", onSelect: () => goToTitle(app) });
-    this.menu = new Menu(items, 190);
+    this.menu = new Menu(items, 190, app.audio);
+  }
+
+  enter(): void {
+    this.app.audio.playTrack("menu");
   }
 
   step(dtMs: number): void {

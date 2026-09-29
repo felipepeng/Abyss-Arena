@@ -8,7 +8,7 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M7 — Áudio sintetizado** (não iniciado). M3 a M6 implementados; falta jogá-los à mão.
+**Marco atual: M8 — Polimento e balanceamento** (não iniciado). M3 a M7 implementados; falta jogá-los à mão.
 M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
 contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
@@ -232,16 +232,32 @@ livre, sem tocar em tecla de depuração, e toda transição tem fade.
 
 ---
 
-## ⬜ M7 — Áudio sintetizado
+## 🟨 M7 — Áudio sintetizado
 
-- [ ] `audio/engine.ts`: contexto criado no primeiro gesto, barramentos de música e efeitos.
-- [ ] Todos os efeitos do GDD §10.1, disparados por eventos da simulação.
-- [ ] `MusicSource` procedural com camadas de intensidade; uma trilha por mapa e uma do menu.
-- [ ] Controles de volume (música e efeitos) no título e na pausa.
+- [x] `audio/engine.ts`: contexto criado no primeiro gesto, barramentos de música e efeitos.
+- [x] Todos os efeitos do GDD §10.1, disparados por eventos da simulação.
+- [x] `MusicSource` procedural com camadas de intensidade; uma trilha por mapa e uma do menu.
+- [x] Controles de volume (música e efeitos) no título e na pausa.
 
 **Pronto quando:** todo evento da lista do GDD §10.1 tem som; a música muda de intensidade das
 ondas para o chefe e para a última fase dele sem corte; o volume funciona; o hit-stop não
 engasga o áudio.
+
+**Estado (2026-09-29):**
+- Todos os 13 eventos da tabela do GDD §10.1 têm som, mais a morte do jogador, a entrada do
+  chefe, a troca de fase e a batida da investida. Os 11 ataques dos 3 chefes têm cada um o seu
+  aviso, e um teste percorre `BOSS_DEFS` para que um ataque novo sem som não passe.
+- A simulação ganhou só um evento, `chargeStart` (para o tom da carga). O `switch` de
+  `soundMap.ts` é exaustivo: um evento novo não compila até alguém decidir se ele tem som.
+- Validado no Chrome real: `tools/audio-check.html` renderiza cada efeito e cada trilha (nos 3
+  níveis) num `OfflineAudioContext` e mede o sinal. Nenhum erro, nenhuma amostra inválida,
+  nenhum som mudo e nenhum estouro (maior pico 0,49). No jogo, com o `AudioContext`
+  instrumentado: nenhum contexto antes do primeiro gesto, um só depois, música gerando notas e
+  cliques do menu soando, sem erros.
+- **O que nenhuma máquina mede: como soa.** A escolha de timbres, o equilíbrio entre música e
+  efeitos e o "caráter" de cada trilha precisam de ouvido. Os números de ajuste estão em
+  `config/sfx.ts`, `config/music.ts` e `config/audio.ts`.
+- Os volumes são da sessão (sem salvar, GDD §12).
 
 ---
 

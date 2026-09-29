@@ -27,6 +27,7 @@ export class AudioScene implements Scene {
         { kind: "button", label: "Voltar", onSelect: () => scenes.pop() },
       ],
       220,
+      app.audio,
     );
   }
 

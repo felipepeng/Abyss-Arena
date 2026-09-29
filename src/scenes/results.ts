@@ -36,7 +36,12 @@ export class ResultScene implements Scene {
     this.overlay = spec.backdrop === "dim";
     this.title = spec.title;
     this.ambient = spec.backdrop === "ambient" ? new Ambient() : null;
-    this.menu = new Menu(spec.items, 230 + spec.lines.length * LINE_H);
+    this.menu = new Menu(spec.items, 230 + spec.lines.length * LINE_H, app.audio);
+  }
+
+  enter(): void {
+    // a tela final (sem jogo por baixo) volta à trilha calma; derrota e vitória deixam a do mapa
+    if (!this.overlay) this.app.audio.playTrack("menu");
   }
 
   step(dtMs: number): void {

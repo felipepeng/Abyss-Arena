@@ -26,6 +26,7 @@ export class PauseScene implements Scene {
         { kind: "button", label: "Sair para o menu", onSelect: () => goToTitle(app) },
       ],
       220,
+      app.audio,
     );
   }
 

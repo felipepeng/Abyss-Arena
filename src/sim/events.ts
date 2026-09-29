@@ -32,6 +32,8 @@ export type SimEvent =
   /** A máquina da fase mudou de estado. */
   | { t: "phaseChanged"; state: PhaseStateName; wave: number }
   | { t: "dash"; x: number; y: number; dirX: number; dirY: number }
+  /** O jogador apertou o ataque: começa a antecipação e a carga. O áudio abre o tom da carga. */
+  | { t: "chargeStart"; x: number; y: number }
   /** A estocada saiu. `charge` em [0, 1]. */
   | { t: "thrust"; x: number; y: number; dirX: number; dirY: number; charge: number }
   | { t: "playerHurt"; x: number; y: number; amount: number }

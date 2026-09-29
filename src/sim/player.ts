@@ -160,6 +160,7 @@ export function stepPlayer(w: World, intent: PlayerIntent, dtMs: number): void {
     sp.t = SPEAR.anticipationMs;
     sp.chargeMs = 0;
     sp.charging = true;
+    w.events.push({ t: "chargeStart", x: p.x, y: p.y });
     sp.dirX = Math.cos(p.aim);
     sp.dirY = Math.sin(p.aim);
   }

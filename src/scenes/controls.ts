@@ -20,7 +20,7 @@ export class ControlsScene implements Scene {
   private readonly ambient = new Ambient();
 
   constructor(private readonly app: App) {
-    this.menu = new Menu([{ kind: "button", label: "Voltar", onSelect: () => app.scenes.pop() }], 430);
+    this.menu = new Menu([{ kind: "button", label: "Voltar", onSelect: () => app.scenes.pop() }], 430, app.audio);
   }
 
   step(dtMs: number): void {

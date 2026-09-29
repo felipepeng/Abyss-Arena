@@ -1,3 +1,4 @@
+import type { AudioApi } from "../audio/api";
 import type { Action } from "../config/input";
 import { FONT_FAMILY, VIEW } from "../config/system";
 import { AUDIO } from "../config/audio";
@@ -41,6 +42,8 @@ export class Menu {
     readonly items: readonly MenuItem[],
     /** Topo do primeiro item, em px. */
     private readonly top: number,
+    /** Clique ao navegar e ao confirmar (GDD §10.1). Sem som se omitido. */
+    private readonly sounds?: Pick<AudioApi, "ui">,
   ) {}
 
   private itemHeight(i: number): number {
@@ -79,18 +82,24 @@ export class Menu {
   step(input: Input<Action>): void {
     const n = this.items.length;
     if (n === 0) return;
+    const before = this.index;
     if (input.wasPressed("menuUp")) this.index = (this.index + n - 1) % n;
     if (input.wasPressed("menuDown")) this.index = (this.index + 1) % n;
     if (input.mouseMoved) {
       const h = this.hit(input.mouseX, input.mouseY);
       if (h >= 0) this.index = h;
     }
+    if (this.index !== before) this.sounds?.ui("move");
 
     const item = this.items[this.index];
     if (item?.kind === "slider") {
-      if (input.wasPressed("menuLeft")) item.set(item.get() - AUDIO.step);
-      if (input.wasPressed("menuRight")) item.set(item.get() + AUDIO.step);
+      const left = input.wasPressed("menuLeft");
+      const right = input.wasPressed("menuRight");
+      if (left) item.set(item.get() - AUDIO.step);
+      if (right) item.set(item.get() + AUDIO.step);
+      if (left || right) this.sounds?.ui("move");
     } else if (item && input.wasPressed("menuConfirm")) {
+      this.sounds?.ui("confirm");
       item.onSelect();
       return;
     }
@@ -100,6 +109,7 @@ export class Menu {
       const clicked = h >= 0 ? this.items[h] : undefined;
       if (!clicked) return;
       this.index = h;
+      this.sounds?.ui("confirm");
       if (clicked.kind === "button") clicked.onSelect();
       else {
         const t = this.track(h);

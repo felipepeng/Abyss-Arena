@@ -24,7 +24,12 @@ export class TitleScene implements Scene {
         { kind: "button", label: "Áudio", onSelect: () => scenes.push(new AudioScene(app, false)) },
       ],
       196,
+      app.audio,
     );
+  }
+
+  enter(): void {
+    this.app.audio.playTrack("menu");
   }
 
   step(dtMs: number): void {

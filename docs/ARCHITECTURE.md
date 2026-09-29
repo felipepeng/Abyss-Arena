@@ -86,10 +86,14 @@ src/
     particles.ts     bolhas (pool)
     shake.ts         tremor de tela
   audio/
-    engine.ts        AudioContext, barramentos (music/sfx), volume
-    sfx.ts           síntese de cada efeito
-    music.ts         sequenciador procedural por mapa, camadas de intensidade
+    api.ts           `AudioApi` (o que as cenas conhecem) e `SilentAudio`
+    engine.ts        AudioContext no 1º gesto, barramentos music/sfx, volume, teto de vozes
+    synth.ts         renderiza uma `SfxDef` (dados de config/sfx.ts) em nós de Web Audio
+    soundMap.ts      evento da simulação → som (switch exaustivo)
+    sequencer.ts     puro: escala, tempo e camadas → notas (testável sem som)
+    music.ts         `ProceduralMusic`: notas → som, camadas em barramentos com rampa
     sources.ts       interface MusicSource (procedural agora, arquivo depois)
+    level.ts         intensidade da música lida do estado da fase
   scenes/
     manager.ts       pilha de cenas + fades (push, pop, replace e resetTo)
     app.ts           `App`: entrada, gerenciador, depuração, configurações e a próxima semente
@@ -378,8 +382,9 @@ interface MapDef {
   palette: MapPalette;
   titleCard: { name: string; depth: string; line: string };
   waves: WaveDef[];              // composição das 3 ondas (GDD §3.2)
-  music: MusicParams;
 }
+// A trilha de cada mapa mora em config/music.ts (MUSIC[mapId]), não no MapDef: world/ não
+// conhece áudio.
 ```
 
 - `world/builder.ts` recebe `MapDef` e semente e devolve a grade mais os marcadores
@@ -451,13 +456,24 @@ interface MusicSource {
 
 - `audio/engine.ts` cria o `AudioContext` no primeiro gesto do usuário (política dos
   navegadores), com barramentos `music` e `sfx` independentes, cada um com o próprio `GainNode`.
-- `sfx.ts`: uma função por efeito do GDD §10.1, sintetizada com osciladores, ruído branco com
-  filtro e envelopes. Variação de altura de ±5% por disparo. Os efeitos são disparados a partir
-  dos **eventos** da simulação (§4.2).
-- `music.ts` implementa `MusicSource` com um sequenciador simples (escala, tempo, padrões por
-  camada) definido em `MapDef.music`. **Música em arquivo, no futuro, é outra implementação de
-  `MusicSource`**, e o resto do código não muda.
-- O **hit-stop não pausa o áudio**. O som do acerto toca no começo do congelamento.
+- **Os efeitos são dados:** `config/sfx.ts` descreve cada som como uma lista de camadas (oscilador
+  ou ruído, rampa de frequência, envelope, filtro). `synth.ts` é um renderizador genérico; não
+  há uma função por som. Variação de altura de ±5% por disparo (a mesma para todas as camadas,
+  então um acorde continua afinado). Intervalo mínimo por som e teto de 24 vozes seguram um
+  enxame; os sons de `priority` (dano, avisos de chefe) passam do teto. Um compressor no fim da
+  cadeia segura os picos.
+- **Quem dispara:** `AudioEngine.onEvents` recebe os eventos da simulação de cada passo, na mesma
+  hora em que o `Fx` os recebe, e `soundMap.ts` diz que som cada um faz. A simulação não sabe que
+  o áudio existe (regra 4). O tom da carga da lança abre em `chargeStart` e corta em `thrust`.
+- **Música:** `config/music.ts` traz uma trilha por mapa e uma do menu (escala, andamento,
+  progressões). `sequencer.ts` gera notas por semicolcheia, com semente; `music.ts` as toca.
+  A intensidade (0 ondas, 1 chefe, 2 última fase do chefe, `level.ts`) só muda o ganho dos
+  barramentos das camadas em rampa, então não há corte. **Música em arquivo, no futuro, é outra
+  implementação de `MusicSource`**, e o resto do código não muda.
+- As cenas falam com a interface `AudioApi`, não com o motor: os testes usam um espião e o jogo
+  roda mudo se o navegador não tiver Web Audio.
+- O **hit-stop não pausa o áudio**: o relógio é o do `AudioContext`, e o som do acerto sai no
+  passo em que o evento nasce, o começo do congelamento.
 
 ---
 

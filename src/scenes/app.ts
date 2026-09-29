@@ -1,3 +1,4 @@
+import type { AudioApi } from "../audio/api";
 import type { Action } from "../config/input";
 import type { Input } from "../core/input";
 import type { Settings } from "../core/settings";
@@ -15,6 +16,8 @@ export interface App {
   readonly scenes: SceneManager;
   readonly debug: DebugFlags;
   readonly settings: Settings;
+  /** Efeitos e música. Nos testes, um espião ou o `SilentAudio`. */
+  readonly audio: AudioApi;
   /**
    * Semente de uma fase nova. A primeira pode vir da URL (`?seed=`, para reproduzir um mapa);
    * depois, cada fase nova sorteia a sua. "Tentar de novo" não chama isto: reusa a da fase

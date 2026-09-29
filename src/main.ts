@@ -4,6 +4,7 @@ import { Display } from "./core/display";
 import { attachDomInput, Input } from "./core/input";
 import { FixedStepLoop, runLoop } from "./core/loop";
 import { parseSeed, randomSeed } from "./core/rng";
+import { AudioEngine } from "./audio/engine";
 import { Settings } from "./core/settings";
 import { DebugOverlay } from "./debug/overlay";
 import type { App } from "./scenes/app";
@@ -39,7 +40,13 @@ attachDomInput(input, canvas, VIEW.width, VIEW.height);
 
 const debug = new DebugOverlay(DEBUG.fpsSampleMs, params.has("debug"));
 const scenes = new SceneManager(SCENE.fadeMs, SCENE.fadeColor);
-const app: App = { input, scenes, debug, settings: new Settings(), nextSeed };
+const settings = new Settings();
+const audio = new AudioEngine(settings);
+// Os navegadores só deixam tocar som depois de um gesto do jogador: o primeiro toque de tecla ou
+// clique cria o contexto de áudio (e a trilha que as cenas já pediram começa aí).
+for (const type of ["keydown", "pointerdown"] as const) window.addEventListener(type, () => audio.unlock());
+document.addEventListener("visibilitychange", () => audio.setHidden(document.hidden));
+const app: App = { input, scenes, debug, settings, audio, nextSeed };
 
 // O jogo abre no título. Atalhos de desenvolvimento, que pulam os menus:
 //   `?map=rift|coral|abyss`  abre direto a fase daquele mapa (Arena livre)
@@ -63,6 +70,7 @@ const loop = new FixedStepLoop(SIM.stepMs, SIM.maxFrameMs, {
     if (!debug.enabled) loop.timeScale = 1;
     scenes.step(dtMs);
     input.endStep();
+    audio.update();
   },
   consumeHitStop: (dtMs) => scenes.consumeHitStop(dtMs),
   render(alpha) {

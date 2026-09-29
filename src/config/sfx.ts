@@ -1,0 +1,264 @@
+// Efeitos sonoros (GDD §10.1): cada som é uma lista de camadas sintetizadas na hora, sem
+// nenhum arquivo. Uma camada é um oscilador ou ruído branco, com um envelope (ataque rápido,
+// decaimento exponencial) e, se quiser, um filtro. As frequências vão do primeiro valor ao
+// segundo em rampa exponencial: é como o "tom descendente" de um golpe ou o "sopro" que sobe.
+//
+// Todos os sons de um disparo compartilham a mesma variação de altura (±5%), então um acorde
+// continua afinado.
+
+export interface SfxLayer {
+  kind: "osc" | "noise";
+  /** Só para \`osc\`. */
+  wave?: "sine" | "square" | "sawtooth" | "triangle";
+  /** Início e fim da frequência, em Hz (rampa exponencial). Ignorado no ruído. */
+  freq?: readonly [number, number];
+  durMs: number;
+  /** Quanto depois do disparo a camada começa. */
+  delayMs?: number;
+  /** Pico do envelope, de 0 a 1. */
+  gain: number;
+  /** Subida até o pico (padrão: 4 ms). Um ataque longo faz um som "crescente". */
+  attackMs?: number;
+  filter?: { type: "lowpass" | "highpass" | "bandpass"; freq: readonly [number, number]; q?: number };
+}
+
+export interface SfxDef {
+  layers: readonly SfxLayer[];
+  /** Menor intervalo entre dois disparos, ms. Segura enxames (mortes, estouros). */
+  minGapMs?: number;
+  /** Passa do teto de vozes: sons que o jogador não pode perder (dano, morte do chefe). */
+  priority?: boolean;
+}
+
+/** Sons de aviso de chefe: um por tipo de ataque (GDD §10.1), graves e reconhecíveis. */
+export const WARN_KEYS = [
+  "warn.crab.dash",
+  "warn.crab.pinch",
+  "warn.crab.call",
+  "warn.jelly.ring",
+  "warn.jelly.beam",
+  "warn.jelly.pull",
+  "warn.eye.fan",
+  "warn.eye.spiral",
+  "warn.eye.siege",
+  "warn.eye.seek",
+  "warn.eye.rain",
+] as const;
+
+export type SfxName =
+  | "thrust"
+  | "charge"
+  | "hit"
+  | "pop"
+  | "block"
+  | "dash"
+  | "hurt"
+  | "playerDie"
+  | "pickup"
+  | "enemyDie"
+  | "spawn"
+  | "bossAppear"
+  | "bossPhase"
+  | "bossImpact"
+  | "bossDie"
+  | "menuMove"
+  | "menuConfirm"
+  | (typeof WARN_KEYS)[number];
+
+export const SFX: Readonly<Record<SfxName, SfxDef>> = {
+  // sopro curto, filtrado
+  thrust: {
+    layers: [{ kind: "noise", gain: 0.9, durMs: 140, attackMs: 14, filter: { type: "bandpass", freq: [900, 2400], q: 1.2 } }],
+  },
+  // tom ascendente que sobe durante a carga e para no máximo (600 ms). Entra em silêncio, então
+  // um toque rápido de ataque não o faz soar.
+  charge: {
+    layers: [{ kind: "osc", wave: "triangle", freq: [220, 880], gain: 0.16, durMs: 620, attackMs: 320 }],
+  },
+  // golpe grave e seco + estalo
+  hit: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [140, 48], gain: 0.62, durMs: 210 },
+      { kind: "osc", wave: "square", freq: [330, 90], gain: 0.2, durMs: 55, attackMs: 1 },
+      { kind: "noise", gain: 0.3, durMs: 45, attackMs: 1, filter: { type: "highpass", freq: [2600, 2600] } },
+    ],
+  },
+  // "plop" agudo
+  pop: {
+    minGapMs: 28,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [880, 1500], gain: 0.28, durMs: 75, attackMs: 2 },
+      { kind: "noise", gain: 0.1, durMs: 30, attackMs: 1, filter: { type: "highpass", freq: [4200, 4200] } },
+    ],
+  },
+  // "tink" metálico
+  block: {
+    layers: [
+      { kind: "osc", wave: "square", freq: [1900, 1750], gain: 0.2, durMs: 190, attackMs: 1, filter: { type: "highpass", freq: [1200, 1200] } },
+      { kind: "osc", wave: "sine", freq: [2860, 2600], gain: 0.16, durMs: 150, attackMs: 1 },
+    ],
+  },
+  // rajada de bolhas: ruído com filtro subindo
+  dash: {
+    layers: [
+      { kind: "noise", gain: 0.9, durMs: 270, attackMs: 20, filter: { type: "bandpass", freq: [400, 2800], q: 1.4 } },
+      { kind: "osc", wave: "sine", freq: [190, 130], gain: 0.12, durMs: 200 },
+    ],
+  },
+  // baque abafado + tom descendente
+  hurt: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [190, 58], gain: 0.55, durMs: 280 },
+      { kind: "osc", wave: "sawtooth", freq: [310, 110], gain: 0.18, durMs: 300, filter: { type: "lowpass", freq: [600, 300] } },
+    ],
+  },
+  playerDie: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sawtooth", freq: [230, 38], gain: 0.34, durMs: 950, filter: { type: "lowpass", freq: [700, 160] } },
+      { kind: "noise", gain: 0.18, durMs: 700, attackMs: 30, filter: { type: "lowpass", freq: [900, 120] } },
+    ],
+  },
+  // acorde curto ascendente (dó, mi, sol)
+  pickup: {
+    layers: [
+      { kind: "osc", wave: "sine", freq: [523, 523], gain: 0.2, durMs: 150 },
+      { kind: "osc", wave: "sine", freq: [659, 659], gain: 0.2, durMs: 150, delayMs: 70 },
+      { kind: "osc", wave: "sine", freq: [784, 784], gain: 0.22, durMs: 240, delayMs: 140 },
+    ],
+  },
+  // bolhas + tom curto
+  enemyDie: {
+    minGapMs: 35,
+    layers: [
+      { kind: "noise", gain: 0.5, durMs: 150, attackMs: 6, filter: { type: "bandpass", freq: [500, 1600], q: 1.1 } },
+      { kind: "osc", wave: "sine", freq: [430, 210], gain: 0.24, durMs: 130 },
+    ],
+  },
+  // borbulhar crescente
+  spawn: {
+    minGapMs: 60,
+    layers: [
+      { kind: "noise", gain: 0.5, durMs: 500, attackMs: 400, filter: { type: "bandpass", freq: [300, 1500], q: 1.3 } },
+      { kind: "osc", wave: "sine", freq: [200, 520], gain: 0.09, durMs: 500, attackMs: 400 },
+    ],
+  },
+  bossAppear: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [72, 48], gain: 0.5, durMs: 1300, attackMs: 500 },
+      { kind: "noise", gain: 0.2, durMs: 1100, attackMs: 600, filter: { type: "lowpass", freq: [200, 90] } },
+    ],
+  },
+  bossPhase: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sawtooth", freq: [120, 42], gain: 0.42, durMs: 800, filter: { type: "lowpass", freq: [800, 200] } },
+      { kind: "noise", gain: 0.24, durMs: 700, attackMs: 40, filter: { type: "bandpass", freq: [700, 120], q: 0.8 } },
+    ],
+  },
+  bossImpact: {
+    layers: [{ kind: "osc", wave: "sine", freq: [105, 38], gain: 0.5, durMs: 280 }],
+  },
+  // explosão grave longa
+  bossDie: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [95, 28], gain: 0.7, durMs: 1500 },
+      { kind: "noise", gain: 0.5, durMs: 1500, attackMs: 8, filter: { type: "lowpass", freq: [1000, 70] } },
+      { kind: "osc", wave: "sawtooth", freq: [64, 24], gain: 0.28, durMs: 1300, filter: { type: "lowpass", freq: [400, 90] } },
+    ],
+  },
+  // clique suave ao navegar e ao confirmar
+  menuMove: {
+    layers: [{ kind: "osc", wave: "sine", freq: [660, 640], gain: 0.22, durMs: 60, attackMs: 2 }],
+  },
+  menuConfirm: {
+    layers: [
+      { kind: "osc", wave: "sine", freq: [880, 940], gain: 0.26, durMs: 110, attackMs: 2 },
+      { kind: "osc", wave: "sine", freq: [1320, 1320], gain: 0.18, durMs: 120, attackMs: 2, delayMs: 50 },
+    ],
+  },
+
+  // --- avisos de ataque de chefe: graves, um por tipo ---------------------------------------
+  // Caranguejo: a investida sobe (vem aí), a pinça bate duas vezes, o chamado desce em três notas
+  "warn.crab.dash": {
+    priority: true,
+    layers: [{ kind: "osc", wave: "sawtooth", freq: [90, 190], gain: 0.34, durMs: 380, attackMs: 60, filter: { type: "lowpass", freq: [500, 900] } }],
+  },
+  "warn.crab.pinch": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [115, 80], gain: 0.5, durMs: 130 },
+      { kind: "osc", wave: "sine", freq: [115, 80], gain: 0.5, durMs: 130, delayMs: 160 },
+    ],
+  },
+  "warn.crab.call": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "triangle", freq: [230, 215], gain: 0.3, durMs: 120 },
+      { kind: "osc", wave: "triangle", freq: [185, 172], gain: 0.3, durMs: 120, delayMs: 130 },
+      { kind: "osc", wave: "triangle", freq: [150, 140], gain: 0.3, durMs: 160, delayMs: 260 },
+    ],
+  },
+  // Água-viva: o anel é um pulso que vibra (dois tons desafinados), o raio sobe carregando, a
+  // sucção é um sopro grave que afunda
+  "warn.jelly.ring": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [160, 160], gain: 0.3, durMs: 520, attackMs: 40 },
+      { kind: "osc", wave: "sine", freq: [166, 166], gain: 0.3, durMs: 520, attackMs: 40 },
+    ],
+  },
+  "warn.jelly.beam": {
+    priority: true,
+    layers: [{ kind: "osc", wave: "sawtooth", freq: [70, 280], gain: 0.3, durMs: 800, attackMs: 560, filter: { type: "lowpass", freq: [400, 900] } }],
+  },
+  "warn.jelly.pull": {
+    priority: true,
+    layers: [
+      { kind: "noise", gain: 0.3, durMs: 560, attackMs: 200, filter: { type: "lowpass", freq: [420, 140] } },
+      { kind: "osc", wave: "sine", freq: [95, 55], gain: 0.34, durMs: 560 },
+    ],
+  },
+  // Olho: o leque estala, a espiral gira (dois tons subindo), o cerco pulsa três vezes, os
+  // perseguidores pingam, a chuva vem de cima
+  "warn.eye.fan": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "square", freq: [150, 110], gain: 0.2, durMs: 230, filter: { type: "lowpass", freq: [700, 400] } },
+      { kind: "osc", wave: "sine", freq: [75, 55], gain: 0.4, durMs: 260 },
+    ],
+  },
+  "warn.eye.spiral": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [100, 210], gain: 0.3, durMs: 560, attackMs: 200 },
+      { kind: "osc", wave: "sine", freq: [104, 218], gain: 0.3, durMs: 560, attackMs: 200 },
+    ],
+  },
+  "warn.eye.siege": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sawtooth", freq: [62, 58], gain: 0.34, durMs: 170, filter: { type: "lowpass", freq: [300, 300] } },
+      { kind: "osc", wave: "sawtooth", freq: [62, 58], gain: 0.34, durMs: 170, delayMs: 200, filter: { type: "lowpass", freq: [300, 300] } },
+      { kind: "osc", wave: "sawtooth", freq: [62, 58], gain: 0.4, durMs: 260, delayMs: 400, filter: { type: "lowpass", freq: [300, 300] } },
+    ],
+  },
+  "warn.eye.seek": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "triangle", freq: [320, 170], gain: 0.28, durMs: 180 },
+      { kind: "osc", wave: "triangle", freq: [320, 170], gain: 0.28, durMs: 180, delayMs: 210 },
+    ],
+  },
+  "warn.eye.rain": {
+    priority: true,
+    layers: [
+      { kind: "noise", gain: 0.26, durMs: 620, attackMs: 80, filter: { type: "bandpass", freq: [2600, 420], q: 0.9 } },
+      { kind: "osc", wave: "sine", freq: [82, 82], gain: 0.3, durMs: 560, attackMs: 100 },
+    ],
+  },
+};

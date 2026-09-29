@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Checagem do áudio</title>
+</head>
+<body>
+<pre id="out">rodando…</pre>
+<script type="module">
+// Ferramenta de desenvolvimento: renderiza cada efeito e cada trilha num OfflineAudioContext
+// (o Web Audio de verdade, só que sem tocar) e mede o sinal: pico, energia (RMS), amostras
+// inválidas e quanto do tempo é silêncio. Serve para pegar parâmetro rejeitado pelo navegador,
+// som mudo ou som estourado sem precisar ouvir.
+//   /tools/audio-check.html   →  o resultado fica em window.__result (JSON) e na página
+import { createNoiseBuffer, playSfx } from "/src/audio/synth.ts";
+import { ProceduralMusic } from "/src/audio/music.ts";
+import { AUDIO } from "/src/config/audio.ts";
+import { MUSIC } from "/src/config/music.ts";
+import { SFX } from "/src/config/sfx.ts";
+
+const RATE = 44100;
+
+// a mesma cadeia do motor: barramento → ganho geral → compressor → saída
+function chain(ctx) {
+  const comp = ctx.createDynamicsCompressor();
+  const c = AUDIO.compressor;
+  comp.threshold.value = c.threshold; comp.knee.value = c.knee; comp.ratio.value = c.ratio;
+  comp.attack.value = c.attack; comp.release.value = c.release;
+  const master = ctx.createGain();
+  master.gain.value = AUDIO.masterGain;
+  master.connect(comp);
+  comp.connect(ctx.destination);
+  const bus = ctx.createGain();
+  bus.gain.value = 0.7 ** AUDIO.volumeCurve; // volume padrão
+  bus.connect(master);
+  return bus;
+}
+
+function stats(buf) {
+  const d = buf.getChannelData(0);
+  let peak = 0, sum = 0, bad = 0, quiet = 0, lastLoud = 0;
+  for (let i = 0; i < d.length; i++) {
+    const v = d[i];
+    if (!Number.isFinite(v)) { bad++; continue; }
+    const a = Math.abs(v);
+    if (a > peak) peak = a;
+    sum += v * v;
+    if (a < 0.0005) quiet++; else lastLoud = i;
+  }
+  return {
+    peak: +peak.toFixed(3), rms: +Math.sqrt(sum / d.length).toFixed(4), bad,
+    silentPct: +((100 * quiet) / d.length).toFixed(1), audibleMs: Math.round((1000 * lastLoud) / RATE),
+  };
+}
+
+const result = { sfx: {}, music: {}, errors: [] };
+
+for (const [name, def] of Object.entries(SFX)) {
+  try {
+    const ctx = new OfflineAudioContext(1, Math.ceil(RATE * 2), RATE);
+    const noise = createNoiseBuffer(ctx, AUDIO.noiseSeconds, () => Math.random());
+    playSfx(ctx, chain(ctx), def, { random: () => 0.5, noise, when: 0.05 });
+    result.sfx[name] = stats(await ctx.startRendering());
+  } catch (e) {
+    result.errors.push(`sfx ${name}: ${e}`);
+  }
+}
+
+// cada trilha por 8 s em cada nível, com o agendador rodando à mão (o tempo do offline não anda)
+for (const id of Object.keys(MUSIC)) {
+  for (const level of [0, 1, 2]) {
+    try {
+      const secs = 8;
+      const ctx = new OfflineAudioContext(1, RATE * secs, RATE);
+      const music = new ProceduralMusic(MUSIC[id], { autoSchedule: false });
+      music.setIntensity(level);
+      // o offline não tem "tempo real": agenda todas as notas de antemão, em janelas
+      music.start(ctx, chain(ctx));
+      for (let t = 0.4; t < secs; t += 0.4) music.schedule(t);
+      result.music[`${id}.${level}`] = stats(await ctx.startRendering());
+    } catch (e) {
+      result.errors.push(`music ${id}.${level}: ${e}`);
+    }
+  }
+}
+
+window.__result = result;
+document.getElementById("out").textContent = JSON.stringify(result, null, 1);
+document.title = "pronto";
+</script>
+</body>
+</html>

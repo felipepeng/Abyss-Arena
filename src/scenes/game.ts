@@ -1,3 +1,5 @@
+import { musicLevel } from "../audio/level";
+import type { TrackId } from "../config/music";
 import type { BossKind } from "../config/kinds";
 import { PROTOTYPE_PALETTE, type Palette } from "../config/palette";
 import { SPEAR } from "../config/spear";
@@ -61,6 +63,15 @@ export class GameScene implements Scene {
     return this.params;
   }
 
+  /** A trilha do mapa; a arena de teste usa a do Leito. */
+  private get track(): TrackId {
+    return this.params.mode.kind === "map" ? this.params.mode.map.id : "rift";
+  }
+
+  enter(): void {
+    this.app.audio.playTrack(this.track);
+  }
+
   private newWorld(): World {
     const { mode, seed } = this.params;
     return mode.kind === "map" ? createMapWorld(mode.map, seed) : createWorld(seed, buildTestArena());
@@ -113,6 +124,9 @@ export class GameScene implements Scene {
 
     stepWorld(w, it, dtMs);
     this.fx.step(dtMs, w.events.list);
+    // o áudio reage aos mesmos eventos; ele tem o próprio relógio, então o hit-stop não o congela
+    this.app.audio.onEvents(w.events.list);
+    this.app.audio.setIntensity(musicLevel(w));
     if (this.params.flow.kind === "descent") this.params.flow.session.timeMs += dtMs;
     this.checkEnd(dtMs);
   }
@@ -164,6 +178,7 @@ export class GameScene implements Scene {
       this.params = { ...this.params, mode: { kind: "map", map } };
       this.renderer = null;
       this.restart();
+      this.app.audio.playTrack(this.track);
     }
     debugSkipToBoss(this.world);
   }
