@@ -48,7 +48,9 @@ src/
     enemies/   fish.ts circler.ts dummy.ts (saco de pancada, depuração)
                hermit.ts urchin.ts jellyling.ts eel.ts watcher.ts lamprey.ts
     bosses/    crab.ts jelly.ts eye.ts
-    maps/      rift.ts coral.ts abyss.ts
+    maps/      rift.ts coral.ts abyss.ts  (paleta, relevo procedural, ondas, cartão de título)
+    kinds.ts         nomes dos tipos de inimigo e de chefe (world/ e sim/ precisam deles)
+    waves.ts         tempos do fluxo da fase e do nascimento das ondas
   sim/               simulação pura (determinística dada a semente)
     world.ts         estado do mundo e `stepWorld`: grade, entidades, projéteis, pickups, câmera
     body.ts          corpo físico comum (posição, velocidade, prev*, raios)
@@ -61,7 +63,7 @@ src/
                      registry.ts (tipo → EnemyDef); o saco de pancada é um tipo como os outros
     spawner.ts       nascimento provisório por tempo (M2; sai com as ondas do M3)
     debug.ts         ações de depuração que mexem na simulação (anel de projéteis)
-    bosses/          runner genérico de chefe + ataques de cada chefe
+    bosses/          runner genérico de chefe + um arquivo por chefe + registry.ts
     projectiles.ts   movimento, colisão, erosão
     pickups.ts       bolhas de cura
     combat.ts        funil de dano ao jogador, dano a inimigo, hit-stop, empurrão
@@ -70,8 +72,8 @@ src/
     grid.ts          Uint8Array + consultas (isSolid, raycast)
     mapdef.ts        tipos do formato de mapa híbrido
     builder.ts       MapDef + semente → grade + marcadores
-    maps/            os 3 layouts desenhados à mão
-    testArena.ts     arena de teste do M1 (sai quando os mapas existirem)
+    maps/            os 3 layouts desenhados à mão (rift.ts no M3)
+    testArena.ts     arena de teste do M1–M2 (`?arena=test`)
   render/            só lê estado; nunca escreve na simulação
     renderer.ts      orquestra camadas, câmera, interpolação, tremor
     background.ts    gradiente + colunas de luz (cache por mapa)
@@ -254,34 +256,48 @@ para que o coral e os pilares funcionem como cobertura contra elas.
 
 É o padrão que o protótipo repete três vezes (CONTEXTO §11), agora extraído:
 
+Implementado no M3 (`sim/bosses/`). Resumo dos tipos (a fonte é `sim/bosses/types.ts`):
+
 ```ts
 interface BossDef {
-  kind: BossKind; name: string; stats: BossStats;
+  kind: BossKind; name: string; rageLabel: string; stats: BossStats;
   phases: BossPhase[];                       // tamanho livre (2 para Caranguejo, 3 para Olho)
-  movement(b: Boss, w: World, dt: number): void;   // o que ele faz no "think"
-  onPhaseEnter?(b: Boss, w: World, phase: number): void;   // ex.: dissolver pilares
+  phaseChangeThinkMs: number;                // pausa curta ao mudar de fase
+  attacks: Record<string, AttackDef>;
+  think(b, w, dt, aim): void;                // o que ele faz enquanto pensa (se aproximar, vagar)
+  orient?(b, aimAng): void;                  // orientação do corpo, depois do movimento
+  slide?: { durationMs; accelScale };        // desliza pela tangente ao bater na rocha
+  onPhaseEnter?(b, w, phase): void;          // ex.: dissolver pilares
 }
 interface BossPhase {
-  hpAtOrBelow: number;                       // 1, 0.66, 0.33...
+  hpBelow: number; inclusive?: boolean;      // entra abaixo (ou em, com inclusive) desta fração
   thinkMs: number;
-  pool: { attack: string; weight: number }[];
+  pool: string[];                            // repetir um nome = mais peso (como no protótipo)
   rerollRepeatChance: number;
 }
 interface AttackDef {
-  id: string;
-  telegraphMs(b: Boss): number;              // pode depender da fase
-  onTelegraph?(b: Boss, w: World, dt: number): void;   // ex.: travar mira, seguir jogador
-  executeMs(b: Boss): number;
-  onExecute(b: Boss, w: World, dt: number, t: number): void;
-  recoverMs(b: Boss): number;
-  next?(b: Boss, w: World): string | null;   // encadear (investida dupla do Caranguejo)
+  telegraphMs(b): number;                    // pode depender da fase
+  onTelegraph?(b, w, dt, aim): void;         // frear, travar a mira
+  executeMs(b): number;                      // 0 = instantâneo no fim do aviso (o chamado)
+  onStart?(b, w): void;                      // o passo em que a execução começa
+  onExecute?(b, w, dt, aim): boolean | void; // true = termina antes (investida bateu)
+  next?(b, w): { attack; telegraphMs } | null;   // encadear (investida dupla)
+  uncapped?; ownContact?; slides?;           // sem teto / dano de contato próprio / desliza
+  fxSize?(b): number;                        // alcance do golpe, para efeito e desenho
 }
 ```
 
-- O **runner de chefe** faz `think → telegraph → execute → recover → think`, o sorteio com
-  reroll e a troca de fase. Um chefe novo só adiciona arquivos; não mexe em `switch` nenhum.
-- A barra de vida lê `phases[].hpAtOrBelow` para desenhar as marcas (resolve CONTEXTO §7.4,
+- O **runner de chefe** faz `pensar → aviso → execução → (encadear) → pensar`, o sorteio com
+  reroll e a troca de fase, na mesma ordem de operações do `updateCrab` do protótipo. Um chefe
+  novo só adiciona arquivos; não mexe em `switch` nenhum.
+- **Diferenças do desenho original:** não há estado de recuperação separado (o protótipo não
+  tinha; a pausa do "pensar" faz esse papel); o *pool* é uma lista com repetições, e não pares
+  (ataque, peso), porque é o que reproduz o sorteio do protótipo passo a passo; o limiar de fase
+  é "abaixo de" com `inclusive` opcional, porque o Caranguejo usa `<` e o Olho usa `≤`.
+- A barra de vida lê `phases[].hpBelow` para desenhar as marcas (resolve CONTEXTO §7.4,
   item 3).
+- Durante a entrada (GDD §2.2) o chefe existe mas fica inativo: não age, não ataca e a lança
+  não o acerta.
 - Não existe mais `boss` global único: o mundo tem `bosses: Boss[]`, mesmo que a v1 use um só.
 - O raio da Água-viva deixa de usar `b.t += DTMS` (CONTEXTO §7.4, item 1): o `AttackDef` dele
   tem **dois subestágios explícitos** (`extend` e `sweep`) dentro de `onExecute`.
@@ -344,6 +360,11 @@ interface MapDef {
 - `world/builder.ts` recebe `MapDef` e semente e devolve a grade mais os marcadores
   resolvidos. **O procedural só escreve em células `~`**. A estrutura desenhada nunca muda.
 - A mesma semente gera o mesmo mapa. "Tentar de novo" reusa a semente (GDD §2.3).
+- O mapa e a simulação usam sequências aleatórias separadas, derivadas da mesma semente
+  (`SIM_SEED_SALT` em `sim/world.ts`): mexer no gerador do mapa não muda o que acontece na
+  luta, e vice-versa.
+- Os tipos de criatura (`EnemyKind`, `BossKind`) moram em `config/kinds.ts`, porque os
+  mapas listam as ondas e `world/` não pode importar `sim/`.
 - Os pilares do Fosso são listas de índices de bloco, geradas a partir de `markers.pillars`.
   Ficam **dentro do mundo** (`world.pillars`), não em globais (CONTEXTO §7.4, item 6).
 
@@ -358,9 +379,10 @@ com as entidades.
 
 ## 7. Render
 
-- **Camadas, na ordem:** fundo (cache) → rocha (cache) → partículas → pickups → criaturas (cada
-  uma com o próprio aviso) → projéteis → jogador (com a lança **por baixo** do corpo) → HUD (sem
-  tremor) → overlays de cena (fade, cartão de título, menus). É a ordem do protótipo: as bolhas
+- **Camadas, na ordem:** fundo (cache) → rocha (cache) → partículas → pickups → avisos de
+  nascimento → criaturas (cada uma com o próprio aviso) → chefe (com os avisos dele: faixa,
+  círculo, anéis) → projéteis → jogador (com a lança **por baixo** do corpo) → HUD (sem tremor)
+  → overlays de cena (fade, cartão de título, menus). É a ordem do protótipo: as bolhas
   do acerto nascem atrás do alvo, os projéteis passam por cima das criaturas, o jogador fica
   sempre visível por cima de tudo, e a haste começa a 6 px do centro do mergulhador. Avisos que
   não pertencem a uma criatura (faixas e anéis dos chefes) entram entre pickups e criaturas.
@@ -440,6 +462,7 @@ qualquer estado (exceto cleared) → failed   (vida do jogador = 0)
 | `interlude` | 2500 ms (3000 antes do chefe) | tempo |
 | `bossIntro` | 1500 ms | tempo; o chefe fica inerte e invulnerável |
 | `boss` | — | chefe morto → `cleared` |
+| `cleared` | 1200 ms | "FASE CONCLUÍDA" aparece no fim; a saída (próximo mapa, seleção) vem no M6 |
 
 O **spawner de onda** (fila, teto de 6 vivos, intervalo de 600 ms, aviso de 500 ms, zonas do
 mapa) mora aqui. Os capangas invocados pelo Caranguejo entram direto no mundo, com
@@ -463,6 +486,7 @@ Ligado por `?debug` na URL ou `F1`:
 | `F6` | regenerar o mapa com semente nova |
 | `F7` | câmera lenta (0,25×) |
 | `F8` | anel de projéteis em volta do jogador (testa o pool, o estouro pela lança e a erosão) |
+| `B` | o mesmo que `F4` (o protótipo usava `B` para chamar o Caranguejo) |
 | `R` | reiniciar com a mesma semente (fora da depuração, só depois de morrer, até existir o menu do M6) |
 
 A semente atual aparece no overlay, para que um bug de mapa possa ser reproduzido.
@@ -483,7 +507,12 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
 - **Chefes:** sorteio com reroll; troca de fase nos limiares; `ω · hoverDist < 250` para todo
   ataque rotacional do config.
 - **Mapas:** mesma semente → mesma grade; o procedural não toca células fixas; toda zona de
-  nascimento está em água; os corredores do coral têm ≥ 80 px.
+  nascimento está em água; os corredores do coral têm ≥ 80 px. No Leito: as fendas cabem o
+  jogador e não cabem o Caranguejo.
+- **Paridade do Caranguejo:** o gerador de rastros desliga as bolhas do protótipo (que também
+  sorteavam) e usa um gerador congruencial com semente no `Math.random`; o teste põe o mesmo
+  gerador na RNG do mundo. Assim o sorteio de ataques, o reroll e a investida dupla são
+  comparados passo a passo, e não só com o sorteio fixo em 0,5.
 - **Harness de simulação:** roda N segundos com entradas roteirizadas (ex.: "jogador parado
   atrás de um pilar") e mede o dano recebido, como foi feito no protótipo para o Olho.
 - **Paridade com o protótipo:** `tools/prototype-trace.mjs` roda o **código original** de

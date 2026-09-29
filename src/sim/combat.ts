@@ -2,6 +2,7 @@ import { PLAYER } from "../config/player";
 import { SPEAR } from "../config/spear";
 import { len } from "../core/math";
 import { ENEMY_DEFS } from "./enemies/registry";
+import type { Boss } from "./bosses/types";
 import type { Enemy } from "./enemies/types";
 import { dropHeal } from "./pickups";
 import { isInvulnerable } from "./player";
@@ -44,6 +45,25 @@ export function hitEnemy(w: World, e: Enemy, damage: number, dirX: number, dirY:
   e.vy += dirY * SPEAR.enemyKnockback * m;
   w.events.push({ t: "spearHit", x: e.x, y: e.y, dirX, dirY, targetR: e.radius });
   if (e.hp <= 0) killEnemy(w, e);
+}
+
+/**
+ * Acerto da lança num chefe. Mesmas regras do inimigo comum: o empurrão cai com o raio
+ * (o Caranguejo leva 32%) e o teto de velocidade do chefe corta o resto. Chefe não solta cura.
+ */
+export function hitBoss(w: World, b: Boss, damage: number, dirX: number, dirY: number): void {
+  b.hp -= damage;
+  b.flashMs = SPEAR.targetFlashMs;
+  const m = 1 / Math.max(1, b.radius / SPEAR.knockbackRefRadius);
+  b.vx += dirX * SPEAR.enemyKnockback * m;
+  b.vy += dirY * SPEAR.enemyKnockback * m;
+  w.events.push({ t: "spearHit", x: b.x, y: b.y, dirX, dirY, targetR: b.radius });
+  if (b.hp <= 0) {
+    b.hp = 0;
+    b.dead = true;
+    w.kills++;
+    w.events.push({ t: "bossDied", x: b.x, y: b.y, radius: b.radius, boss: b.kind });
+  }
 }
 
 function killEnemy(w: World, e: Enemy): void {

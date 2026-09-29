@@ -1,5 +1,5 @@
+import type { EnemyKind } from "../config/kinds";
 import { WORLD } from "../config/world";
-import type { EnemyKind } from "../sim/enemies/types";
 import { Cell, Grid } from "./grid";
 
 // Arena de teste (M1–M2): borda e alguns blocos, maior que a tela para exercitar a câmera.

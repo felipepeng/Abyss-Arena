@@ -8,7 +8,7 @@ Design: [`GDD.md`](GDD.md) · Código: [`ARCHITECTURE.md`](ARCHITECTURE.md) · P
 
 ## Estado atual
 
-**Marco atual: M3 — Fluxo de fase + Caranguejo** (não iniciado).
+**Marco atual: M4 — Água-viva e Olho** (não iniciado). M3 implementado; falta jogá-lo à mão.
 M0 pronto em 2026-09-29. M1 e M2 implementados em 2026-09-29, com paridade numérica provada
 contra o código do protótipo; falta o teste lado a lado de quem joga (ver cada marco).
 O protótipo está em `prototipo/index.html`. Ele é a referência de paridade do M1 em diante.
@@ -95,27 +95,39 @@ com 100+ projéteis.
 
 ---
 
-## ⬜ M3 — Fluxo de fase + Caranguejo
+## 🟨 M3 — Fluxo de fase + Caranguejo
 
 A primeira fase completa, de ponta a ponta.
 
-- [ ] `MapDef` + `world/builder.ts` (layout ASCII + procedural com semente só em `~`).
-- [ ] **Leito das Fendas** desenhado (GDD §7.1), com paleta, zonas de nascimento e posições
+- [x] `MapDef` + `world/builder.ts` (layout ASCII + procedural com semente só em `~`).
+- [x] **Leito das Fendas** desenhado (GDD §7.1), com paleta, zonas de nascimento e posições
       de ouriço (os ouriços entram no M5; as posições já ficam marcadas).
-- [ ] `sim/phase.ts`: intro → 3 ondas → interlúdios → entrada do chefe → chefe →
+- [x] `sim/phase.ts`: intro → 3 ondas → interlúdios → entrada do chefe → chefe →
       concluída / falhou.
-- [ ] Spawner de onda: fila, teto de 6, 600 ms, aviso de 500 ms.
-- [ ] `BossDef` + `AttackDef` + runner de chefe genérico.
-- [ ] **Caranguejo** portado para dados: investida, pinça, chamado, fase 2, investida dupla.
-- [ ] HUD: vida, recarga do dash, contador de onda, barra do chefe com marca de fase, seta
+- [x] Spawner de onda: fila, teto de 6, 600 ms, aviso de 500 ms.
+- [x] `BossDef` + `AttackDef` + runner de chefe genérico.
+- [x] **Caranguejo** portado para dados: investida, pinça, chamado, fase 2, investida dupla.
+- [x] HUD: vida, recarga do dash, contador de onda, barra do chefe com marca de fase, seta
       fora da tela.
-- [ ] Cartão de título (versão simples) e textos de onda.
-- [ ] Reiniciar a fase com a mesma semente ao morrer.
-- [ ] Testes: máquina da fase, determinismo do mapa, sorteio com reroll.
+- [x] Cartão de título (versão simples) e textos de onda.
+- [x] Reiniciar a fase com a mesma semente ao morrer.
+- [x] Testes: máquina da fase, determinismo do mapa, sorteio com reroll.
 
 **Pronto quando:** dá para jogar a fase inteira do Leito das Fendas, das ondas à morte do
 Caranguejo; morrer reinicia na onda 1 com o mesmo mapa; o Caranguejo se comporta como no
 protótipo e a investida bate nas formações.
+
+**Estado (2026-09-29):**
+- O Caranguejo bate com o **código do protótipo** passo a passo em 3 cenários (jogador parado,
+  jogador nadando com o chamado, fase 2 com a investida dupla), com a mesma sequência
+  aleatória dos dois lados.
+- A fase inteira roda nos testes (intro → 3 ondas → chefe → concluída; `failed` de qualquer
+  estado) e a investida bate nas formações do Leito.
+- As ondas têm só peixes e circuladores até o M5 (ermitão e ouriço); as posições dos ouriços
+  estão marcadas em `RIFT_URCHIN_SPOTS`.
+- Sem a rede "parado 1,5 s → recoloca" do protótipo: com a colisão nova ela não é necessária.
+  O deslize tangencial na parede ficou, porque é comportamento do chefe, não conserto.
+- Falta jogar a fase inteira à mão, das ondas à morte do Caranguejo.
 
 ---
 

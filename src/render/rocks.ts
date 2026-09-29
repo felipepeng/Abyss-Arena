@@ -23,6 +23,8 @@ export class RockLayer {
   private cache: OffscreenCanvas | null = null;
   private cacheScale = 0;
   private drawnVersion = -1;
+  /** A grade desenhada: ao reiniciar ou trocar de mapa, a grade nova pode ter a mesma versão. */
+  private drawnGrid: Grid | null = null;
 
   constructor(private readonly palette: Palette) {}
 
@@ -46,9 +48,10 @@ export class RockLayer {
       this.drawnVersion = -1;
     }
     this.cacheScale = scale;
-    if (this.drawnVersion !== grid.version) {
+    if (this.drawnVersion !== grid.version || this.drawnGrid !== grid) {
       this.redraw(this.cache, grid, scale);
       this.drawnVersion = grid.version;
+      this.drawnGrid = grid;
     }
     return this.cache;
   }

@@ -4,7 +4,7 @@ import { PLAYER } from "../config/player";
 import { SPEAR } from "../config/spear";
 import { resetBody, UNSET, type Body } from "./body";
 import { moveBody } from "./collision";
-import { hitEnemy } from "./combat";
+import { hitBoss, hitEnemy } from "./combat";
 import { accelerate, applyDrag, clampSpeed } from "./physics";
 import type { World } from "./world";
 
@@ -275,6 +275,19 @@ function spearHitCheck(w: World): void {
     sp.hitIds.add(e.id);
     hitEnemy(w, e, sp.damage, tip.dirX, tip.dirY);
     // hit-stop e recuo só quando acerta criatura: errar não tem recompensa
+    w.hitStopMs = SPEAR.hitStopMs;
+    p.vx = -tip.dirX * SPEAR.selfRecoil;
+    p.vy = -tip.dirY * SPEAR.selfRecoil;
+  }
+
+  // o chefe é mais um alvo, depois dos inimigos (fora da entrada, quando ainda é intocável)
+  for (const b of w.bosses) {
+    if (!b.active || b.dead || sp.hitIds.has(b.id)) continue;
+    const rr = b.radius + SPEAR.tipRadius;
+    const hit = len(b.x - tip.x, b.y - tip.y) <= rr || len(b.x - midX, b.y - midY) <= rr;
+    if (!hit) continue;
+    sp.hitIds.add(b.id);
+    hitBoss(w, b, sp.damage, tip.dirX, tip.dirY);
     w.hitStopMs = SPEAR.hitStopMs;
     p.vx = -tip.dirX * SPEAR.selfRecoil;
     p.vy = -tip.dirY * SPEAR.selfRecoil;

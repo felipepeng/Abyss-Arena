@@ -1,25 +1,33 @@
 import type { Action } from "../config/input";
-import { PROTOTYPE_PALETTE } from "../config/palette";
+import { PROTOTYPE_PALETTE, type Palette } from "../config/palette";
 import { SPEAR } from "../config/spear";
 import { FONT_FAMILY, VIEW } from "../config/system";
 import type { Input } from "../core/input";
 import { TAU, lerp } from "../core/math";
 import { Fx } from "../fx/fx";
 import { WorldRenderer } from "../render/renderer";
+import { BOSS_DEFS } from "../sim/bosses/registry";
 import { fireDebugRing } from "../sim/debug";
 import { ENEMY_DEFS } from "../sim/enemies/registry";
 import { inDashInvuln, makeSpearTip, NO_INTENT, spearTip, type PlayerIntent } from "../sim/player";
-import { createWorld, stepWorld, type World } from "../sim/world";
+import { debugSkipToBoss, debugSkipWave } from "../sim/phase";
+import { createMapWorld, createWorld, stepWorld, type World } from "../sim/world";
+import type { MapDef } from "../world/mapdef";
+import { buildTestArena } from "../world/testArena";
 import { drawControlsHint, drawPlayerHud } from "../ui/hud";
+import { drawPhaseHud } from "../ui/phaseHud";
 import type { Scene, SceneManager } from "./manager";
 import { PauseScene } from "./pause";
 
-// Cena de jogo. Até o M2 é a arena de teste com o nascimento provisório por tempo; o fluxo
-// de fase (ondas → chefe) entra no M3.
+// Cena de jogo: uma fase inteira num mapa (ondas → chefe), ou a arena de teste do M1–M2
+// (`?arena=test`), com o nascimento provisório por tempo e os sacos de pancada.
 
 export interface DebugFlags {
   readonly enabled: boolean;
 }
+
+/** O que a cena joga: o mapa de uma fase, ou a arena de teste. */
+export type GameMode = { kind: "map"; map: MapDef } | { kind: "test" };
 
 const CONTROLS_HINT =
   "WASD nadar · clique ou J estocar (segure para carregar) · ESPAÇO dash · Esc pausa · F1 depuração";
@@ -27,7 +35,7 @@ const CONTROLS_HINT =
 export class GameScene implements Scene {
   private world: World;
   private readonly fx = new Fx();
-  private readonly renderer = new WorldRenderer(PROTOTYPE_PALETTE);
+  private readonly renderer: WorldRenderer;
   private readonly intent: PlayerIntent = { ...NO_INTENT };
 
   constructor(
@@ -35,8 +43,15 @@ export class GameScene implements Scene {
     private readonly scenes: SceneManager,
     private readonly debug: DebugFlags,
     private readonly seed: number,
+    private readonly mode: GameMode,
   ) {
-    this.world = createWorld(seed);
+    const palette: Palette = mode.kind === "map" ? mode.map.palette : PROTOTYPE_PALETTE;
+    this.renderer = new WorldRenderer(palette);
+    this.world = this.newWorld();
+  }
+
+  private newWorld(): World {
+    return this.mode.kind === "map" ? createMapWorld(this.mode.map, this.seed) : createWorld(this.seed, buildTestArena());
   }
 
   step(dtMs: number): void {
@@ -45,9 +60,10 @@ export class GameScene implements Scene {
       this.scenes.push(new PauseScene(input, this.scenes));
       return;
     }
-    // reiniciar: sempre depois de morrer (ainda não há menu de derrota, M6); a qualquer
+    // reiniciar: sempre depois de morrer ou de vencer (ainda não há menus, M6); a qualquer
     // momento no modo de depuração
-    if (input.wasPressed("debugRestart") && (this.world.playerDead || this.debug.enabled)) {
+    const over = this.world.playerDead || this.world.phase?.state === "cleared";
+    if (input.wasPressed("debugRestart") && (over || this.debug.enabled)) {
       this.restart();
       return;
     }
@@ -55,6 +71,9 @@ export class GameScene implements Scene {
     if (this.debug.enabled) {
       if (input.wasPressed("debugGodMode")) w.godMode = !w.godMode;
       if (input.wasPressed("debugProjectiles")) fireDebugRing(w);
+      if (input.wasPressed("debugNextWave")) debugSkipWave(w);
+      if (input.wasPressed("debugSkipToBoss") || input.wasPressed("debugCrab")) debugSkipToBoss(w);
+      if (input.wasPressed("debugBossPhase")) forceNextBossPhase(w);
     }
 
     const it = this.intent;
@@ -83,14 +102,19 @@ export class GameScene implements Scene {
   render(g: CanvasRenderingContext2D, alpha: number): void {
     const w = this.world;
     this.renderer.draw(g, w, this.fx, alpha);
-    drawControlsHint(g, CONTROLS_HINT);
+    if (!w.phase) drawControlsHint(g, CONTROLS_HINT);
     drawPlayerHud(g, w.player, w.kills);
+    if (this.mode.kind === "map") {
+      const camX = lerp(w.camera.prevX, w.camera.x, alpha);
+      const camY = lerp(w.camera.prevY, w.camera.y, alpha);
+      drawPhaseHud(g, w, this.mode.map.titleCard, camX, camY);
+    }
     if (w.playerDead) drawDefeat(g, w.kills);
   }
 
   /** Reinicia com a mesma semente (a mesma que "tentar de novo" vai usar, GDD §2.3). */
   restart(): void {
-    this.world = createWorld(this.seed);
+    this.world = this.newWorld();
     this.fx.clear();
   }
 
@@ -104,7 +128,9 @@ export class GameScene implements Scene {
       `dash ${Math.max(p.dashMs, 0).toFixed(0)} ms · recarga ${Math.max(p.dashCdMs, 0).toFixed(0)}${inDashInvuln(p) ? " · INVULN" : ""}`,
       `inimigos ${w.enemies.count} · projéteis ${w.projectiles.count} · curas ${w.pickups.count}`,
       `bolhas ${this.fx.bubbles.pool.count}${w.godMode ? " · INVENCÍVEL" : ""}`,
+      ...phaseDebugLines(w),
       "R reinicia · F2 invencível · F7 lento · F8 projéteis",
+      "F3 próxima onda · F4 chefe · F5 fase do chefe",
     ];
   }
 
@@ -171,6 +197,25 @@ function drawBodyDebug(
   g.stroke();
 }
 
+function phaseDebugLines(w: World): string[] {
+  const f = w.phase;
+  if (!f) return [];
+  const lines = [`fase ${f.state} · onda ${f.wave} · ${Math.max(f.t, 0).toFixed(0)} ms · fila ${f.queue.length}`];
+  for (const b of w.bosses) {
+    lines.push(`${b.kind} fase ${b.phase + 1} · ${b.state} ${b.attack} ${Math.max(b.t, 0).toFixed(0)} ms · vida ${b.hp.toFixed(0)}`);
+  }
+  return lines;
+}
+
+/** F5: leva a vida do chefe para logo abaixo do próximo limiar de fase. */
+function forceNextBossPhase(w: World): void {
+  for (const b of w.bosses) {
+    const next = BOSS_DEFS[b.kind].phases[b.phase + 1];
+    if (!b.active || b.dead || !next) continue;
+    b.hp = Math.min(b.hp, b.maxHp * next.hpBelow - 1);
+  }
+}
+
 /** Tela de derrota provisória; a de verdade, com opções, chega no M6. */
 function drawDefeat(g: CanvasRenderingContext2D, kills: number): void {
   const { width: W, height: H } = VIEW;
@@ -183,6 +228,6 @@ function drawDefeat(g: CanvasRenderingContext2D, kills: number): void {
   g.fillText("VOCÊ AFUNDOU", W / 2, H / 2 - 6);
   g.fillStyle = "#dff0ff";
   g.font = `14px ${FONT_FAMILY}`;
-  g.fillText(`R para reiniciar · ${kills} inimigos mortos`, W / 2, H / 2 + 22);
+  g.fillText(`R para tentar de novo · ${kills} inimigos mortos`, W / 2, H / 2 + 22);
   g.textAlign = "left";
 }

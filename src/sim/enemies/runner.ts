@@ -14,7 +14,9 @@ import type { Enemy, EnemyKind } from "./types";
 //   orientação → arrasto → colisão → contato com o jogador.
 
 /** Põe um inimigo no mundo. Devolve null se o pool estiver cheio. */
-export function spawnEnemy(w: World, kind: EnemyKind, x: number, y: number, noDrop = false): Enemy | null {
+export function spawnEnemy(
+  w: World, kind: EnemyKind, x: number, y: number, noDrop = false, fromWave = false,
+): Enemy | null {
   const e = w.enemies.obtain();
   if (!e) return null;
   const def = ENEMY_DEFS[kind];
@@ -35,6 +37,7 @@ export function spawnEnemy(w: World, kind: EnemyKind, x: number, y: number, noDr
   e.dirX = 1;
   e.dirY = 0;
   e.noDrop = noDrop;
+  e.fromWave = fromWave;
   e.dead = false;
   // Sobrescreve em vez de apagar: `delete` põe o objeto em modo dicionário, e aí cada número
   // guardado nele aloca. UNSET, e não 0, para o campo continuar double (ver sim/body.ts).
@@ -52,7 +55,7 @@ export function makeEnemySlot(): Enemy {
   return {
     x: F, y: F, vx: F, vy: F, prevX: F, prevY: F, radius: F, collR: F, blockedX: false, blockedY: false,
     id: 0, kind: "fish", hp: F, maxHp: F, state: "", t: F, stateMs: F, ang: F, prevAng: F,
-    flashMs: F, dirX: F, dirY: F, noDrop: false, dead: false, data: {},
+    flashMs: F, dirX: F, dirY: F, noDrop: false, fromWave: false, dead: false, data: {},
   };
 }
 

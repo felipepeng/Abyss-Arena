@@ -24,6 +24,9 @@ const traces = await page.evaluate(() => {
     // Sorteios fixos em 0,5 (serpenteio, órbita, cronômetros): o teste de paridade fixa a
     // RNG da simulação nova no mesmo valor, e os dois lados ficam comparáveis passo a passo.
     Math.random = () => 0.5;
+    // As bolhas do protótipo também sorteiam: desligadas, só a lógica de jogo consome a
+    // sequência aleatória, e ela pode ser comparada com a RNG da simulação nova.
+    window.bubbles = () => {};
     resetGame();
     grid.fill(0);
     for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++)
@@ -50,7 +53,12 @@ const traces = await page.evaluate(() => {
       if (game.hitStopMs > 0) { game.hitStopMs -= DTMS; out.push(null); continue; }
       step();
       const e = enemies[0];
+      const b = boss;
       out.push({
+        pblocked: !!(player.blockedX || player.blockedY),
+        bx: b ? b.x : null, by: b ? b.y : null, bvx: b ? b.vx : null, bvy: b ? b.vy : null,
+        bstate: b ? b.state : null, bt: b ? b.t : null, bhp: b ? b.hp : null,
+        bphase2: b ? b.phase2 : null, bblocked: b ? !!(b.blockedX || b.blockedY) : null,
         x: player.x, y: player.y, vx: player.vx, vy: player.vy,
         phase: player.spear.state, dashMs: player.dashMs, hitStop: game.hitStopMs,
         hp: player.hp, invulnMs: player.invulnMs, dead: game.dead, enemies: enemies.length,
@@ -74,6 +82,22 @@ const traces = await page.evaluate(() => {
       state: "orbit", t: 0, orbitAng: Math.random() * Math.PI * 2, orbitDir: Math.random() < 0.5 ? -1 : 1,
       dirX: 1, dirY: 0, flash: 0, ang: 0,
     });
+  };
+  // Caranguejo a (dx, dy) do jogador, com a sequência aleatória a partir daqui vinda de um
+  // gerador congruencial com semente. O teste usa o mesmo gerador na RNG do mundo.
+  const lcg = (seed) => {
+    let s = seed >>> 0;
+    return () => {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  };
+  const crabAt = (dx, dy, hp, seed) => () => {
+    spawnBoss();
+    boss.x = boss.lastX = player.x + dx;
+    boss.y = boss.lastY = player.y + dy;
+    if (hp) boss.hp = hp;
+    Math.random = lcg(seed);
   };
   // estocadas repetidas, com carga curta
   const poke = (every) => (i) => ({ mouseDown: i % every < 3, mousePressed: i % every === 0 });
@@ -99,6 +123,11 @@ const traces = await page.evaluate(() => {
     circlerWhileSwimming: run((i) => ({ keys: i < 60 ? ["KeyD"] : i < 100 ? ["KeyS"] : [] }), 300, circlerAt(-120, 60)),
     killFish: run(poke(25), 200, fishAt(120, 0)),
     killCircler: run(poke(25), 220, circlerAt(100, 0)),
+    // Caranguejo: pensar, sortear (com reroll), investida, pinça, chamado, contato, fase 2,
+    // investida dupla. O teste compara até o primeiro passo em que alguém encosta na parede.
+    crabVsIdle: run(() => ({}), 600, crabAt(240, 0, 0, 1)),
+    crabVsSwimmer: run((i) => ({ keys: (i % 160) < 50 ? ["KeyW"] : (i % 160) < 100 ? ["KeyS"] : [] }), 600, crabAt(-220, 40, 0, 7)),
+    crabPhase2: run(poke(20), 600, crabAt(150, 0, 216, 42)),
   };
 });
 writeFileSync(outPath, JSON.stringify(traces));

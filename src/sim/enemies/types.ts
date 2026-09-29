@@ -1,10 +1,11 @@
+import type { EnemyKind } from "../../config/kinds";
 import type { Body } from "../body";
 import type { World } from "../world";
 
 // Inimigos por dados (ARCHITECTURE §5.3). Cada tipo é uma `EnemyDef`: atributos e uma
 // máquina de estados declarativa. O runner genérico cuida do que é comum a todos.
 
-export type EnemyKind = "fish" | "circler" | "dummy" | "dummyBig";
+export type { EnemyKind };
 
 /** Os campos são mutáveis porque o objeto é reaproveitado pelo pool (`spawnEnemy`). */
 export interface Enemy extends Body {
@@ -25,6 +26,8 @@ export interface Enemy extends Body {
   dirY: number;
   /** Invocado por chefe: não solta cura. */
   noDrop: boolean;
+  /** Nasceu de uma onda: conta para o fim dela (os capangas do chefe não contam). */
+  fromWave: boolean;
   dead: boolean;
   /** Campos próprios do tipo (fase do serpenteio, ângulo da órbita, ponto de origem...). */
   readonly data: Record<string, number>;

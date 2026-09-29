@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { activateBoss, createBoss } from "../../src/sim/bosses/runner";
+import type { Boss } from "../../src/sim/bosses/types";
 import { spawnEnemy } from "../../src/sim/enemies/runner";
 import type { EnemyKind } from "../../src/sim/enemies/types";
 import { stepWorld, type World } from "../../src/sim/world";
@@ -32,6 +34,16 @@ interface ProtoStep {
   estate: string | null;
   et: number | null;
   ehp: number | null;
+  pblocked?: boolean;
+  bx?: number | null;
+  by?: number | null;
+  bvx?: number | null;
+  bvy?: number | null;
+  bstate?: string | null;
+  bt?: number | null;
+  bhp?: number | null;
+  bphase2?: boolean | null;
+  bblocked?: boolean | null;
 }
 
 type Trace = (ProtoStep | null)[];
@@ -74,7 +86,16 @@ function replay(w: World, n: number, script: (i: number) => Frame): Trace {
     );
     const p = w.player;
     const d = w.enemies.count > 0 ? w.enemies.get(0) : undefined;
+    const b = w.bosses[0];
     out.push({
+      bx: b ? b.x - x0 + PROTO_START.x : null,
+      by: b ? b.y - y0 + PROTO_START.y : null,
+      bvx: b ? b.vx : null,
+      bvy: b ? b.vy : null,
+      bstate: b ? protoBossState(b) : null,
+      bt: b ? b.t : null,
+      bhp: b ? b.hp : null,
+      bphase2: b ? b.phase >= 1 : null,
       // relativo ao início, trazido para o referencial do protótipo
       x: p.x - x0 + PROTO_START.x,
       y: p.y - y0 + PROTO_START.y,
@@ -270,5 +291,85 @@ describe("paridade com o protótipo: inimigos", () => {
   it("estocadas no circulador", () => {
     const w = protoWorld("circler", 100, 0);
     expectSameEnemyTrace(replay(w, len("killCircler"), poke(25)), T.killCircler ?? []);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Caranguejo (M3). O protótipo chama os estados de "think", "dashTel", "dash", "pinchTel",
+// "pinch" e "callTel"; o runner genérico usa pensar / aviso / execução + o nome do ataque.
+// O chamado não tem estado de execução no protótipo: acontece no fim do aviso, e o nosso
+// também (execução de 0 ms). Os sorteios vêm do mesmo gerador congruencial dos dois lados
+// (o gerador de rastros desliga as bolhas do protótipo, que também sorteavam).
+
+function protoBossState(b: Boss): string {
+  if (b.state === "think") return "think";
+  return b.state === "telegraph" ? `${b.attack}Tel` : b.attack;
+}
+
+function lcg(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function crabWorld(dx: number, dy: number, hp: number, seed: number): World {
+  const w = openWorld({ grid: openGrid(48, 27), start: { ...PROTO_START } });
+  pinRng(w);
+  const b = createBoss(w, "crab", PROTO_START.x + dx, PROTO_START.y + dy);
+  activateBoss(b);
+  if (hp) b.hp = hp;
+  w.rng.next = lcg(seed);
+  return w;
+}
+
+function expectSameBossTrace(ours: Trace, proto: Trace): void {
+  // até o primeiro passo em que alguém encosta na parede (ali a colisão difere de propósito)
+  const wall = proto.findIndex((s) => s !== null && (s.pblocked || s.bblocked));
+  const n = wall < 0 ? proto.length : wall;
+  for (let i = 0; i < n; i++) {
+    const a = ours[i];
+    const b = proto[i];
+    const where = `passo ${i}`;
+    if (b === null || b === undefined) {
+      expect(a, where).toBeNull();
+      continue;
+    }
+    if (!a) throw new Error(`${where}: nosso passo está congelado e o do protótipo não`);
+    expect(a.bstate, `${where} estado do chefe`).toBe(b.bstate);
+    expect(a.bphase2, `${where} fase 2`).toBe(b.bphase2);
+    expect(a.bx, `${where} chefe x`).toBeCloseTo(b.bx ?? NaN, 6);
+    expect(a.by, `${where} chefe y`).toBeCloseTo(b.by ?? NaN, 6);
+    expect(a.bvx, `${where} chefe vx`).toBeCloseTo(b.bvx ?? NaN, 6);
+    expect(a.bvy, `${where} chefe vy`).toBeCloseTo(b.bvy ?? NaN, 6);
+    expect(a.bt, `${where} cronômetro do chefe`).toBeCloseTo(b.bt ?? NaN, 6);
+    expect(a.bhp, `${where} vida do chefe`).toBeCloseTo(b.bhp ?? NaN, 6);
+    expect(a.phase, `${where} lança`).toBe(b.phase);
+    expect(a.x, `${where} jogador x`).toBeCloseTo(b.x, 6);
+    expect(a.y, `${where} jogador y`).toBeCloseTo(b.y, 6);
+    expect(a.hp, `${where} vida do jogador`).toBeCloseTo(b.hp, 6);
+    expect(a.dead, `${where} morto`).toBe(b.dead);
+    // capangas do chamado: a quantidade (a ordem no pool difere da do array do protótipo)
+    expect(a.enemies, `${where} peixes invocados`).toBe(b.enemies);
+  }
+}
+
+describe("paridade com o protótipo: Caranguejo", () => {
+  it("contra um jogador parado: investida, pinça, contato, morte do jogador", () => {
+    const w = crabWorld(240, 0, 0, 1);
+    expectSameBossTrace(replay(w, len("crabVsIdle"), () => ({})), T.crabVsIdle ?? []);
+  });
+
+  it("contra um jogador que nada: chamado e peixes invocados", () => {
+    const w = crabWorld(-220, 40, 0, 7);
+    const script = (i: number): Frame => ({ move: i % 160 < 50 ? move("KeyW") : i % 160 < 100 ? move("KeyS") : [0, 0] });
+    expectSameBossTrace(replay(w, len("crabVsSwimmer"), script), T.crabVsSwimmer ?? []);
+  });
+
+  it("fase 2 com estocadas: troca de fase, investida dupla, dano no chefe", () => {
+    const w = crabWorld(150, 0, 216, 42);
+    const poke20 = (i: number): Frame => ({ mouse: i % 20 < 3, press: i % 20 === 0 });
+    expectSameBossTrace(replay(w, len("crabPhase2"), poke20), T.crabPhase2 ?? []);
   });
 });

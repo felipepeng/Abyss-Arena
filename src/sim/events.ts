@@ -1,4 +1,5 @@
-import type { EnemyKind } from "./enemies/types";
+import type { BossKind, EnemyKind } from "../config/kinds";
+import type { PhaseStateName } from "./phase";
 
 // Eventos que a simulação emite para fora (ARCHITECTURE §4.2). Render, áudio e FX reagem a
 // eles; a simulação decide *que* algo aconteceu, o resto decide *como* aparece.
@@ -8,9 +9,20 @@ export type SimEvent =
   | { t: "spearHit"; x: number; y: number; dirX: number; dirY: number; targetR: number }
   | { t: "enemyDied"; x: number; y: number; radius: number; kind: EnemyKind }
   /** Um aviso começou (regra 2). Para som e depuração; o desenho lê o estado da criatura. */
-  | { t: "telegraph"; x: number; y: number; source: EnemyKind; attack: string }
-  /** O ataque telegrafado saiu. */
-  | { t: "attackStart"; x: number; y: number; source: EnemyKind; attack: string }
+  | { t: "telegraph"; x: number; y: number; source: EnemyKind | BossKind; attack: string }
+  /** O ataque telegrafado saiu. `size` é o alcance do golpe, quando importa para o efeito. */
+  | { t: "attackStart"; x: number; y: number; source: EnemyKind | BossKind; attack: string; size?: number }
+  /** O chefe mudou de fase. */
+  | { t: "bossPhase"; x: number; y: number; boss: BossKind; phase: number }
+  /** O chefe bateu na rocha no meio de um ataque (a investida contra uma formação). */
+  | { t: "bossImpact"; x: number; y: number; boss: BossKind }
+  | { t: "bossDied"; x: number; y: number; radius: number; boss: BossKind }
+  /** O chefe entrou em cena (começo da entrada). */
+  | { t: "bossAppeared"; x: number; y: number; boss: BossKind }
+  /** Um inimigo vai nascer aqui daqui a pouco: nascer também é telegrafado (GDD §3.1). */
+  | { t: "spawnWarn"; x: number; y: number }
+  /** A máquina da fase mudou de estado. */
+  | { t: "phaseChanged"; state: PhaseStateName; wave: number }
   | { t: "dash"; x: number; y: number; dirX: number; dirY: number }
   /** A estocada saiu. `charge` em [0, 1]. */
   | { t: "thrust"; x: number; y: number; dirX: number; dirY: number; charge: number }

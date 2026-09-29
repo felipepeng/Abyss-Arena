@@ -7,6 +7,7 @@ import { parseSeed, randomSeed } from "./core/rng";
 import { DebugOverlay } from "./debug/overlay";
 import { GameScene } from "./scenes/game";
 import { SceneManager } from "./scenes/manager";
+import { RIFT } from "./world/maps/rift";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("canvas #game não encontrado");
@@ -26,7 +27,9 @@ attachDomInput(input, canvas, VIEW.width, VIEW.height);
 
 const debug = new DebugOverlay(DEBUG.fpsSampleMs, params.has("debug"));
 const scenes = new SceneManager(SCENE.fadeMs, SCENE.fadeColor);
-scenes.start(new GameScene(input, scenes, debug, seed));
+// `?arena=test` abre a arena de teste do M1–M2 (sacos de pancada, nascimento por tempo)
+const mode = params.get("arena") === "test" ? ({ kind: "test" } as const) : ({ kind: "map", map: RIFT } as const);
+scenes.start(new GameScene(input, scenes, debug, seed, mode));
 
 const loop = new FixedStepLoop(SIM.stepMs, SIM.maxFrameMs, {
   step(dtMs) {

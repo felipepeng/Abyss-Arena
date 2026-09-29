@@ -55,4 +55,23 @@ export const FX = {
   rockEroded: { bubbles: { count: 3, color: "#7f9e94", spread: 7, speed: 120 } },
   /** GDD §9.1. */
   pickup: { bubbles: { count: 8, color: "#7dffb0", spread: 6, speed: 120 } },
+  /** Redemoinho no ponto onde um inimigo vai nascer (GDD §9.1). */
+  spawnWarn: { bubbles: { count: 12, color: "#cfeaff", spread: 10, speed: 60 } },
+  /** Chefe: entrada, fase nova e morte. */
+  bossAppeared: { shake: { ms: 260, amp: 6 } },
+  bossDied: {
+    bubbles: { count: 18, color: "#ffd2b0", spread: 0, speed: 260 },
+    spreadScale: 0.6,
+    shake: { ms: 420, amp: 9 },
+  },
+  /** Caranguejo (CONTEXTO §6.1). */
+  crab: {
+    phase2: { bubbles: { count: 26, color: "#ffb27a", spread: 24, speed: 300 }, shake: { ms: 400, amp: 8 } },
+    dash: { bubbles: { count: 18, color: "#ffd9b0", spread: 20, speed: 240 }, shake: { ms: 160, amp: 4 } },
+    /** A investida bateu numa formação. */
+    impact: { shake: { ms: 220, amp: 6 } },
+    /** O espalhamento das bolhas da pinça é proporcional ao raio do golpe. */
+    pinch: { bubbles: { count: 24, color: "#ffc9a0", spread: 0, speed: 320 }, spreadScale: 0.5, shake: { ms: 220, amp: 7 } },
+    call: { bubbles: { count: 22, color: "#a8ffd8", spread: 22, speed: 280 } },
+  },
 } as const;
