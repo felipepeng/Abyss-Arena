@@ -4,10 +4,10 @@ import { Sequencer, type NoteEvent } from "./sequencer";
 import type { MusicSource } from "./sources";
 
 // Música procedural (GDD §10.2): implementa `MusicSource`. O sequenciador decide as notas; aqui
-// elas viram som. Cada camada (pad, pulso, percussão, arpejo) tem o seu barramento, e a
-// intensidade só mexe no ganho deles em rampa: por isso a música muda de nível sem corte.
+// elas viram som. Cada camada (pad, pulso, baixo, tema, percussão, arpejo) tem o seu barramento,
+// e a intensidade só mexe no ganho deles em rampa: por isso a música muda de nível sem corte.
 
-type Layer = "pad" | "pulse" | "perc" | "arp";
+type Layer = "pad" | "pulse" | "bass" | "lead" | "perc" | "arp";
 
 export interface ProceduralOptions {
   /** Agenda sozinha, num temporizador. Os testes desligam e chamam `schedule`. */
@@ -48,7 +48,7 @@ export class ProceduralMusic implements MusicSource {
       return g;
     };
     const t = MUSIC_LAYERS.gains[this.level];
-    this.buses = { pad: bus(t.pad), pulse: bus(t.pulse), perc: bus(t.perc), arp: bus(t.arp) };
+    this.buses = { pad: bus(t.pad), pulse: bus(t.pulse), bass: bus(t.bass), lead: bus(t.lead), perc: bus(t.perc), arp: bus(t.arp) };
     this.noise = createNoiseBuffer(ctx, 0.4, this.opts.random ?? Math.random);
     this.seq = new Sequencer(this.params, ctx.currentTime + 0.1);
     this.schedule(ctx.currentTime);
@@ -103,8 +103,14 @@ export class ProceduralMusic implements MusicSource {
         return this.tone(ctx, buses.pulse, MUSIC_LAYERS.pulse.wave, n, t);
       case "arp":
         return this.tone(ctx, buses.arp, this.params.arpWave, n, t);
+      case "lead":
+        return this.lead(ctx, buses.lead, n, t);
+      case "bass":
+        return this.bass(ctx, buses.bass, n, t);
       case "kick":
         return this.kick(ctx, buses.perc, n, t);
+      case "snare":
+        return this.snare(ctx, buses.perc, n, t);
       case "hat":
         return this.hat(ctx, buses.perc, n, t);
     }
@@ -147,6 +153,85 @@ export class ProceduralMusic implements MusicSource {
     o.type = wave;
     o.frequency.value = n.freq;
     o.connect(env);
+    o.start(t);
+    o.stop(t + n.dur + 0.05);
+  }
+
+  /**
+   * O tema: uma voz só, atrás de um passa-baixas que o nível de intensidade abre (o chefe é mais
+   * brilhante). Sobe rápido, sustenta e solta no fim da nota, para as frases soarem ligadas.
+   */
+  private lead(ctx: AudioContext, bus: GainNode, n: NoteEvent, t: number): void {
+    const L = MUSIC_LAYERS.lead;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.linearRampToValueAtTime(n.gain, t + L.attackS);
+    env.gain.setValueAtTime(n.gain, t + n.dur * (1 - L.releaseFrac));
+    env.gain.linearRampToValueAtTime(0.0001, t + n.dur);
+    env.connect(bus);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = this.params.leadCutoffHz[this.level];
+    filter.Q.value = L.q;
+    filter.connect(env);
+    const o = ctx.createOscillator();
+    o.type = this.params.leadWave;
+    o.frequency.value = n.freq;
+    o.connect(filter);
+    o.start(t);
+    o.stop(t + n.dur + 0.05);
+  }
+
+  /** O baixo: ataque seco e um filtro que fecha durante a nota, para "morder" e assentar. */
+  private bass(ctx: AudioContext, bus: GainNode, n: NoteEvent, t: number): void {
+    const B = MUSIC_LAYERS.bass;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.linearRampToValueAtTime(n.gain, t + B.attackS);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+    env.connect(bus);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(this.params.bassCutoffHz * B.filterSweep[0], t);
+    filter.frequency.exponentialRampToValueAtTime(this.params.bassCutoffHz * B.filterSweep[1], t + n.dur * 0.8);
+    filter.Q.value = B.q;
+    filter.connect(env);
+    const o = ctx.createOscillator();
+    o.type = this.params.bassWave;
+    o.frequency.value = n.freq;
+    o.connect(filter);
+    o.start(t);
+    o.stop(t + n.dur + 0.05);
+  }
+
+  /** Caixa: um estalo de ruído em banda média e um corpo curto de seno que cai. */
+  private snare(ctx: AudioContext, bus: GainNode, n: NoteEvent, t: number): void {
+    const S = MUSIC_LAYERS.snare;
+    if (this.noise) {
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(n.gain, t);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+      env.connect(bus);
+      const f = ctx.createBiquadFilter();
+      f.type = "bandpass";
+      f.frequency.value = S.bandpassHz;
+      f.Q.value = 0.8;
+      f.connect(env);
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.connect(f);
+      src.start(t);
+      src.stop(t + n.dur + 0.05);
+    }
+    const body = ctx.createGain();
+    body.gain.setValueAtTime(S.toneGain, t);
+    body.gain.exponentialRampToValueAtTime(0.0001, t + n.dur * 0.8);
+    body.connect(bus);
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(S.toneHz[0], t);
+    o.frequency.exponentialRampToValueAtTime(S.toneHz[1], t + n.dur * 0.8);
+    o.connect(body);
     o.start(t);
     o.stop(t + n.dur + 0.05);
   }

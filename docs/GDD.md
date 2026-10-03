@@ -166,6 +166,12 @@ joga melhor que o robô vai sentir mais a pressão do que o número diz.
 O jogador do protótipo se mantém. **A única mudança aprovada é a invulnerabilidade do dash
 (§4.2).** Os valores completos e a justificativa de cada um estão no CONTEXTO §3, §4 e §8.
 
+**Visual:** o do protótipo (elipse azul, tanque, visor e nadadeiras triangulares), com um leve
+sombreamento no corpo e no visor (luz fixa no mundo). Um redesenho completo foi tentado e **descartado**
+(`docs/screenshots/player/` guarda o antes e o depois dele). Ficaram dois acréscimos: o **anel de
+carga** da lança, que enche até a carga cheia e então fica dourado e pulsante, e o **contorno branco com
+halo** nos 100 ms de invulnerabilidade do dash (GDD §4.2), além do rastro de silhuetas.
+
 ### 4.1 Nado
 
 | Parâmetro | Valor |
@@ -723,11 +729,25 @@ abre ao apertar o ataque, sobe durante os 600 ms da carga e corta quando a estoc
 
 ### 10.2 Música (procedural)
 
-- Uma trilha gerada por mapa: pads graves, pulso lento, escala própria de cada mapa (mais
-  consonante no Leito, mais dissonante no Fosso).
-- **Camadas por intensidade:** ondas → chefe → fase 2 do chefe acrescentam percussão e
-  densidade, sem cortes bruscos.
-- Menu com uma trilha calma própria.
+- Uma música por mapa, com melodia própria: progressão de 8 compassos, tema, baixo e bateria
+  escritos à mão (`config/music.ts`), escala e andamento próprios (mais consonante no Leito,
+  mais dissonante no Fosso). Cada fase soa diferente do começo ao fim.
+- **Camadas por intensidade, sem cortes bruscos** (a base, o pad e o pulso, nunca para):
+  - **Ondas:** pad grave, pulso lento e o tema, suave e abafado.
+  - **O chefe nasce** (entrada da apresentação dele): entram o baixo em movimento, a bateria
+    e o tema do chefe, mais rápido, mais cheio e mais brilhante.
+  - **Última fase do chefe:** o tema dobra uma oitava acima, entra o arpejo e a bateria enche.
+- Cada trilha tem a sua personalidade:
+
+| Trilha | Escala · andamento | Ondas | Chefe |
+|---|---|---|---|
+| Leito das Fendas | Sol dórico · 72 bpm | tema que desce devagar, pesado | bateria em meio-tempo, baixo em colcheias, tema em pergunta e resposta (as pinças) |
+| Jardim de Corais | Lá lídio · 84 bpm | sinos que flutuam | síncope 3+3+3+3+4, como a água-viva se contraindo |
+| Fosso do Abismo | Mi lócrio · 66 bpm | linhas que rastejam, segundas menores | bateria de coração (tum-tum), estocadas agudas fora do tempo (o olho) |
+
+- Menu com uma música calma própria (pentatônica maior, só as ondas).
+- A música do chefe responde na hora: o ganho das camadas sobe em ~1 s, dentro dos 1,5 s da
+  apresentação do chefe.
 
 ### 10.3 Volume
 

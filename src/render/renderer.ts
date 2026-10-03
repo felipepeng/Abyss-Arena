@@ -47,7 +47,7 @@ export class WorldRenderer {
     }
     for (const b of w.bosses) drawBoss(g, b, alpha, w);
     drawProjectiles(g, w.projectiles, alpha);
-    drawPlayer(g, w.player, alpha);
+    drawPlayer(g, w.player, alpha, w.timeMs);
     g.restore();
   }
 }

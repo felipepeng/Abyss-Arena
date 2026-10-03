@@ -33,10 +33,34 @@ const PALETTE: readonly CrabPalette[] = [
   { hi: "#ff8a63", mid: "#d8492f", lo: "#68170d", rim: "#350b06", claw: "#ff6a48", clawLo: "#8f2314", leg: "#b04328", legLo: "#470f07", eye: "#ffb347" },
 ];
 
-/** "#rrggbb" → "rgba(r,g,b,a)". */
-function withAlphaHex(hex: string, a: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+/** Palma e dedo fixo da garra, numa peça só (referencial da garra: o pulso na origem, apontando para +x). */
+function palmPath(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  g.moveTo(-5, -3);
+  g.bezierCurveTo(-5, -15, 14, -17, 27, -9);
+  g.lineTo(28, -3);
+  g.lineTo(34, -1.5);
+  g.lineTo(37, 2);
+  g.lineTo(41, 0.6);
+  g.lineTo(45, 3.4);
+  g.bezierCurveTo(41, 11, 30, 16, 16, 16);
+  g.bezierCurveTo(3, 16, -5, 10, -5, -3);
+  g.closePath();
+}
+
+/** Dedo móvel, com a junta na origem e dentes por dentro (referencial do dedo). */
+function fingerPath(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  g.moveTo(-6, -5);
+  g.bezierCurveTo(6, -10, 22, -8, 31, 5);
+  g.lineTo(26, 4.6);
+  g.lineTo(23, 0.8);
+  g.lineTo(19, 3);
+  g.lineTo(15, -0.6);
+  g.lineTo(11, 1.6);
+  g.lineTo(7, -1.2);
+  g.lineTo(-6, 3);
+  g.closePath();
 }
 
 /** Tubérculos da carapaça, em fração do raio (x para a frente, y para o lado). */
@@ -199,7 +223,7 @@ export function drawCrab(g: CanvasRenderingContext2D, b: Boss, x: number, y: num
 
   // braços: do ombro, por baixo da carapaça, até o pulso
   for (const s of [-1, 1]) {
-    for (const [w, col] of [[11, flash ? W : pal.clawLo], [7.5, flash ? W : pal.claw]] as const) {
+    for (const [w, col] of [[11, flash ? W : pal.rim], [7.5, flash ? W : pal.mid]] as const) {
       g.strokeStyle = col;
       g.lineWidth = w;
       g.beginPath();
@@ -210,17 +234,17 @@ export function drawCrab(g: CanvasRenderingContext2D, b: Boss, x: number, y: num
     }
   }
 
-  // carapaça
+  // carapaça. A luz vem de cima à esquerda da tela: o ponto de brilho é calculado no mundo,
+  // desfazendo a rotação do corpo (as garras usam o mesmo ponto)
+  const shellLightX = -r * 0.3 * Math.cos(-ang) + r * 0.38 * Math.sin(-ang);
+  const shellLightY = -r * 0.3 * Math.sin(-ang) - r * 0.38 * Math.cos(-ang);
   shellPath(g, r, 1);
   if (flash) {
     g.fillStyle = W;
     g.fill();
   } else {
-    // a luz vem de cima à esquerda da tela: o brilho é calculado no mundo, desfazendo a rotação
-    const lx = -r * 0.3;
-    const ly = -r * 0.38;
-    const hx = lx * Math.cos(-ang) - ly * Math.sin(-ang);
-    const hy = lx * Math.sin(-ang) + ly * Math.cos(-ang);
+    const hx = shellLightX;
+    const hy = shellLightY;
     const grad = g.createRadialGradient(hx, hy, r * 0.1, 0, 0, r * 1.05);
     grad.addColorStop(0, pal.hi);
     grad.addColorStop(0.55, pal.mid);
@@ -312,15 +336,27 @@ export function drawCrab(g: CanvasRenderingContext2D, b: Boss, x: number, y: num
   g.stroke();
 
   // garras: palma grossa que afina no dedo fixo (por dentro) e um dedo móvel articulado em cima,
-  // com dentes. O dedo móvel abre durante o aviso da pinça (a animação é parte do aviso).
+  // com dentes. O dedo móvel abre durante o aviso da pinça (a animação é parte do aviso). Cor,
+  // degradê, sombra de borda e contorno são os da carapaça, com a mesma luz fixa no mundo.
   const open = pinching ? 0.9 : 0.25 + Math.sin(time * 3) * 0.08;
   const jaw = -(open - 0.15) * 0.9;
+  // a direção da luz (a do brilho da carapaça), em vetor unitário no referencial do corpo
+  const lightLen = Math.hypot(shellLightX, shellLightY) || 1;
+  const lux = shellLightX / lightLen;
+  const luy = shellLightY / lightLen;
+  const CLAW_SCALE = 0.92;
   for (const s of [-1, 1]) {
+    const theta = s * -0.3;
     g.save();
     g.translate(r * 0.8, s * r * 0.7);
-    g.rotate(s * -0.3);
+    g.rotate(theta);
     // o dedo móvel fica do lado de fora da garra, o fixo do lado de dentro
-    g.scale(0.92, -0.92 * s);
+    g.scale(CLAW_SCALE, -CLAW_SCALE * s);
+    // a luz no referencial da garra: desfaz a rotação e a escala (e o espelho) dela
+    const c = Math.cos(-theta);
+    const sn = Math.sin(-theta);
+    const lcx = (lux * c - luy * sn) / CLAW_SCALE;
+    const lcy = (lux * sn + luy * c) / (-CLAW_SCALE * s);
     if (charge > 0 && !flash) {
       const glow = g.createRadialGradient(28, 0, 2, 28, 0, 44);
       glow.addColorStop(0, "rgba(255,215,160,0.9)");
@@ -332,102 +368,74 @@ export function drawCrab(g: CanvasRenderingContext2D, b: Boss, x: number, y: num
       g.fill();
       g.globalAlpha = 1;
     }
+    const hiColor = charge > 0 ? "#ffd7a0" : pal.hi;
 
     // palma e dedo fixo, numa peça só
-    g.beginPath();
-    g.moveTo(-5, -3);
-    g.bezierCurveTo(-5, -15, 14, -17, 27, -9);
-    g.lineTo(28, -3);
-    g.lineTo(34, -1.5);
-    g.lineTo(37, 2);
-    g.lineTo(41, 0.6);
-    g.lineTo(45, 3.4);
-    g.bezierCurveTo(41, 11, 30, 16, 16, 16);
-    g.bezierCurveTo(3, 16, -5, 10, -5, -3);
-    g.closePath();
+    palmPath(g);
     if (flash) {
       g.fillStyle = W;
       g.fill();
     } else {
-      const pg = g.createRadialGradient(10, -6, 2, 14, 2, 24);
-      pg.addColorStop(0, charge > 0 ? "#ffd7a0" : pal.hi);
-      pg.addColorStop(1, pal.claw);
+      const pg = g.createRadialGradient(14 + lcx * 12, lcy * 12, 3, 14, 0, 28);
+      pg.addColorStop(0, hiColor);
+      pg.addColorStop(0.55, pal.mid);
+      pg.addColorStop(1, pal.lo);
       g.fillStyle = pg;
       g.fill();
-      // a ponta do dedo escurece, como a de uma garra de verdade
-      const tip = g.createLinearGradient(30, 0, 46, 3);
-      tip.addColorStop(0, "rgba(0,0,0,0)");
-      tip.addColorStop(1, withAlphaHex(pal.clawLo, 0.85));
-      g.fillStyle = tip;
-      g.fill();
-      g.strokeStyle = pal.clawLo;
-      g.lineWidth = 2;
+      // bordo escuro por dentro, como o da carapaça
+      g.save();
+      palmPath(g);
+      g.clip();
+      g.strokeStyle = "rgba(20,6,0,0.35)";
+      g.lineWidth = 7;
+      palmPath(g);
       g.stroke();
-      // tubérculos na palma e um fio de luz na curva de cima
-      g.fillStyle = pal.clawLo;
-      g.globalAlpha = 0.45;
-      for (const [bx, by] of [[6, 5], [13, 8], [19, 3], [9, -3]] as const) {
-        g.beginPath();
-        g.arc(bx, by, 1.6, 0, TAU);
-        g.fill();
-      }
-      g.globalAlpha = 0.4;
-      g.strokeStyle = "#fff4e0";
-      g.lineWidth = 1.4;
-      g.beginPath();
-      g.moveTo(-1, -6);
-      g.bezierCurveTo(2, -13, 14, -14, 24, -8);
-      g.stroke();
-      g.globalAlpha = 1;
+      g.restore();
     }
+    g.strokeStyle = flash ? W : pal.rim;
+    g.lineWidth = 2.6;
+    palmPath(g);
+    g.stroke();
 
     // dedo móvel, articulado no alto da palma
     g.save();
     g.translate(26, -8);
     g.rotate(jaw);
-    g.beginPath();
-    g.moveTo(-6, -5);
-    g.bezierCurveTo(6, -10, 22, -8, 31, 5);
-    g.lineTo(26, 4.6);
-    g.lineTo(23, 0.8);
-    g.lineTo(19, 3);
-    g.lineTo(15, -0.6);
-    g.lineTo(11, 1.6);
-    g.lineTo(7, -1.2);
-    g.lineTo(-6, 3);
-    g.closePath();
+    fingerPath(g);
     if (flash) {
       g.fillStyle = W;
       g.fill();
     } else {
-      const dg = g.createLinearGradient(0, 0, 31, 4);
-      dg.addColorStop(0, charge > 0 ? pal.hi : pal.claw);
-      dg.addColorStop(0.65, pal.claw);
-      dg.addColorStop(1, pal.clawLo);
+      // a luz também gira com o dedo
+      const cj = Math.cos(jaw);
+      const sj = Math.sin(jaw);
+      const ldx = lcx * cj + lcy * sj;
+      const ldy = -lcx * sj + lcy * cj;
+      const dg = g.createRadialGradient(14 + ldx * 8, ldy * 8, 2, 14, 0, 24);
+      dg.addColorStop(0, hiColor);
+      dg.addColorStop(0.55, pal.mid);
+      dg.addColorStop(1, pal.lo);
       g.fillStyle = dg;
       g.fill();
-      g.strokeStyle = pal.clawLo;
-      g.lineWidth = 2;
+      g.save();
+      fingerPath(g);
+      g.clip();
+      g.strokeStyle = "rgba(20,6,0,0.35)";
+      g.lineWidth = 6;
+      fingerPath(g);
       g.stroke();
-      g.globalAlpha = 0.4;
-      g.strokeStyle = "#fff4e0";
-      g.lineWidth = 1.3;
-      g.beginPath();
-      g.moveTo(-3, -4);
-      g.bezierCurveTo(7, -8, 20, -6, 27, 3);
-      g.stroke();
-      g.globalAlpha = 1;
+      g.restore();
+    }
+    g.strokeStyle = flash ? W : pal.rim;
+    g.lineWidth = 2.6;
+    fingerPath(g);
+    g.stroke();
+    if (!flash) {
       // a junta
-      g.fillStyle = pal.clawLo;
+      g.fillStyle = pal.rim;
       g.beginPath();
       g.arc(0, 0, 3, 0, TAU);
       g.fill();
-      g.fillStyle = pal.hi;
-      g.globalAlpha = 0.6;
-      g.beginPath();
-      g.arc(-0.6, -0.6, 1.2, 0, TAU);
-      g.fill();
-      g.globalAlpha = 1;
     }
     g.restore();
     g.restore();

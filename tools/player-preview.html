@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia do jogador</title>
+<style>html,body{margin:0;background:#0a1822}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: desenha o mergulhador (o `drawPlayer` real) em cada estado da
+// lança e do dash, ou num quadro do jogo de verdade, para comparar o desenho antes/depois de um
+// ajuste sem jogar.
+//   /tools/player-preview.html?sheet=states   4 × 3: repouso, nado, dash, dash invulnerável, lança...
+//   /tools/player-preview.html?sheet=angles   8 direções de mira (repouso)
+//   /tools/player-preview.html?view=idle|swim|dash|thrust|charge|hurt   um quadro do jogo (Leito)
+import { drawPlayer } from "/src/render/creatures/player.ts";
+import { PLAYER } from "/src/config/player.ts";
+import { SPEAR } from "/src/config/spear.ts";
+import { createPlayer, NO_INTENT } from "/src/sim/player.ts";
+import { spawnEnemy } from "/src/sim/enemies/runner.ts";
+import { createMapWorld, stepWorld } from "/src/sim/world.ts";
+import { Fx } from "/src/fx/fx.ts";
+import { WorldRenderer } from "/src/render/renderer.ts";
+import { RIFT } from "/src/world/maps/rift.ts";
+
+const q = new URLSearchParams(location.search);
+const canvas = document.getElementById("c");
+const g = canvas.getContext("2d");
+const STEP = 1000 / 60;
+
+/** Um jogador no estado pedido, na origem. `time` (ms) anima as nadadeiras, quando o desenho usa. */
+function makePlayer(state, aim = 0) {
+  const p = createPlayer(0, 0);
+  p.x = p.y = p.prevX = p.prevY = 0;
+  p.vx = p.vy = 0;
+  p.aim = p.prevAim = aim;
+  p.hp = 100;
+  p.invulnMs = 0;
+  p.dashMs = 0;
+  p.dashCdMs = 0;
+  const sp = p.spear;
+  sp.phase = "idle"; sp.t = 0; sp.chargeMs = 0; sp.charging = false;
+  sp.dirX = Math.cos(aim); sp.dirY = Math.sin(aim); sp.reach = SPEAR.reach; sp.damage = SPEAR.damage;
+  const dir = [Math.cos(aim), Math.sin(aim)];
+  switch (state) {
+    case "swim": p.vx = dir[0] * 250; p.vy = dir[1] * 250; break;
+    case "dash": p.dashMs = 20; p.vx = dir[0] * 640; p.vy = dir[1] * 640; break;
+    case "dashInvuln": p.dashMs = 100; p.vx = dir[0] * 640; p.vy = dir[1] * 640; break;
+    case "anticipation": sp.phase = "anticipation"; sp.chargeMs = 40; sp.charging = true; break;
+    case "charge": sp.phase = "anticipation"; sp.chargeMs = 300; sp.charging = true; break;
+    case "chargeFull": sp.phase = "anticipation"; sp.chargeMs = 600; sp.charging = true; break;
+    case "thrust": sp.phase = "thrust"; sp.t = SPEAR.thrustMs * 0.4; sp.vx = 0; p.vx = dir[0] * 320; p.vy = dir[1] * 320; break;
+    case "thrustCharged": sp.phase = "thrust"; sp.t = SPEAR.thrustMs * 0.4; sp.reach = SPEAR.reach + SPEAR.reachChargeBonus; p.vx = dir[0] * 600; p.vy = dir[1] * 600; break;
+    case "recovery": sp.phase = "recovery"; sp.t = SPEAR.recoveryMs * 0.6; break;
+    case "hurt": p.invulnMs = 1; break;
+    default: break;
+  }
+  return p;
+}
+
+if (q.has("sheet")) {
+  const sheet = q.get("sheet");
+  const CELL = 320, ZOOM = 2.1, DPR = 2;
+  const cols = 4;
+  const states = sheet === "angles"
+    ? Array.from({ length: 8 }, (_, i) => ["idle", (i / 8) * Math.PI * 2, `mira ${i * 45}°`])
+    : [
+        ["idle", 0, "repouso"], ["swim", 0, "nadando"], ["dash", 0, "dash (fim)"], ["dashInvuln", 0, "dash invulnerável"],
+        ["anticipation", 0, "antecipação"], ["charge", 0, "carga 50%"], ["chargeFull", 0, "carga cheia"], ["hurt", 0, "ferido (piscada)"],
+        ["thrust", 0, "estocada"], ["thrustCharged", 0, "estocada carregada"], ["recovery", 0, "recuperação"], ["idle", -0.9, "mira em ângulo"],
+      ];
+  const rows = Math.ceil(states.length / cols);
+  canvas.width = cols * CELL * DPR;
+  canvas.height = rows * CELL * DPR;
+  canvas.style.width = cols * CELL + "px";
+  canvas.style.height = rows * CELL + "px";
+  g.scale(DPR, DPR);
+  g.fillStyle = "#0f3a4a";
+  g.fillRect(0, 0, cols * CELL, rows * CELL);
+  const time = 1234;
+  states.forEach(([state, aim, label], i) => {
+    const x0 = (i % cols) * CELL, y0 = Math.floor(i / cols) * CELL;
+    g.save();
+    g.beginPath(); g.rect(x0, y0, CELL, CELL); g.clip();
+    g.translate(x0 + CELL / 2 - 70, y0 + CELL / 2); g.scale(ZOOM, ZOOM);
+    drawPlayer(g, makePlayer(state, aim), 1, time);
+    g.restore();
+    g.fillStyle = "#9ab8c8"; g.font = "12px monospace";
+    g.fillText(label, x0 + 8, y0 + 16);
+  });
+} else {
+  const view = q.get("view") ?? "idle";
+  canvas.width = 960; canvas.height = 540;
+  const w = createMapWorld(RIFT, 3);
+  w.godMode = true;
+  const p = w.player;
+  const aimAt = (dx, dy) => ({ aimX: p.x + dx, aimY: p.y + dy });
+  const run = (n, over) => { for (let i = 0; i < n; i++) stepWorld(w, { ...NO_INTENT, ...aimAt(120, 20), ...over }, STEP); };
+  // um peixe parado perto, só para a lança ter contra o que estocar
+  const fish = spawnEnemy(w, "fish", p.x + 75, p.y + 6);
+  fish.t = 1e9; fish.state = "recover"; fish.vx = fish.vy = 0;
+  const hold = () => { fish.vx = fish.vy = 0; };
+  switch (view) {
+    case "swim": run(40, { moveX: 1 }); break;
+    case "dash": run(8, {}); run(5, { dashHeld: true }); break;
+    case "thrust": {
+      // toca o ataque e espera a fase da estocada de verdade; para no meio dela
+      run(1, { attackHeld: true, attackPressed: true, attackPressedByMouse: true });
+      for (let i = 0; i < 20 && p.spear.phase !== "thrust"; i++) run(1, {});
+      run(3, {});
+      break;
+    }
+    case "charge": run(30, { attackHeld: true, attackPressed: true, attackPressedByMouse: true }); break;
+    case "hurt": p.invulnMs = 1; run(0, {}); break;
+    default: run(10, {}); break;
+  }
+  hold();
+  w.camera.x = w.camera.prevX = p.x - 480 + 40;
+  w.camera.y = w.camera.prevY = p.y - 270;
+  new WorldRenderer(RIFT.palette).draw(g, w, new Fx(), 1);
+}
+document.title = "pronto";
+</script>
+</body>
+</html>

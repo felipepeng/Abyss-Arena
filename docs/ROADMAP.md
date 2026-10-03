@@ -260,6 +260,11 @@ engasga o áudio.
   efeitos e o "caráter" de cada trilha precisam de ouvido. Os números de ajuste estão em
   `config/sfx.ts`, `config/music.ts` e `config/audio.ts`.
 - Os volumes são da sessão (sem salvar, GDD §12).
+- **Músicas novas (2026-10-03):** cada mapa ganhou uma música composta (tema, baixo, bateria),
+  e o chefe, ao nascer, traz baixo, bateria e um tema próprio, mais rápido e brilhante
+  (GDD §10.2). Medido com `tools/audio-check.html`: sem erros, maior pico de música 0,49 e o
+  volume e o brilho sobem a cada nível. **Ainda falta o ouvido:** os temas e o equilíbrio de
+  volume precisam ser ouvidos e ajustados em `config/music.ts`.
 
 ---
 

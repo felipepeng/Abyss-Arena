@@ -268,14 +268,16 @@ describe("música procedural no contexto de mentira", () => {
 
   it("mudar a intensidade ajusta o ganho das camadas em rampa, sem parar nada", () => {
     const { ctx, music } = start(0);
-    // barramentos criados depois do master: pad, pulso, percussão, arpejo
-    const [, , pad, pulse, perc, arp] = ctx.gains;
+    // barramentos criados depois do master: pad, pulso, baixo, tema, percussão, arpejo
+    const [, , pad, pulse, bass, lead, perc, arp] = ctx.gains;
     expect(perc?.gain.value).toBe(MUSIC_LAYERS.gains[0].perc);
     const stopsBefore = ctx.oscs.filter((o) => o.stoppedAt === 0).length;
     music.setIntensity(2);
-    for (const bus of [pad, pulse, perc, arp]) expect(bus?.gain.calls.at(-1)?.fn).toBe("target");
+    for (const bus of [pad, pulse, bass, lead, perc, arp]) expect(bus?.gain.calls.at(-1)?.fn).toBe("target");
     expect(perc?.gain.calls.at(-1)?.args[0]).toBe(MUSIC_LAYERS.gains[2].perc);
     expect(arp?.gain.calls.at(-1)?.args[0]).toBe(MUSIC_LAYERS.gains[2].arp);
+    expect(bass?.gain.calls.at(-1)?.args[0]).toBe(MUSIC_LAYERS.gains[2].bass);
+    expect(lead?.gain.calls.at(-1)?.args[0]).toBe(MUSIC_LAYERS.gains[2].lead);
     expect(arp?.gain.calls.at(-1)?.args[2]).toBe(MUSIC_LAYERS.rampS);
     expect(ctx.oscs.filter((o) => o.stoppedAt === 0).length).toBe(stopsBefore);
   });
