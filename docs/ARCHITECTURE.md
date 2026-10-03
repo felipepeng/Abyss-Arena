@@ -64,6 +64,9 @@ src/
     spawner.ts       nascimento provisório por tempo (M2; sai com as ondas do M3)
     debug.ts         ações de depuração que mexem na simulação (anel de projéteis)
     bosses/          runner genérico de chefe + um arquivo por chefe + registry.ts
+    geometry.ts      raio contra a grade (`rayLength`, `distInRay`) e linha de visão
+    pillars.ts       dissolução dos pilares do Fosso por fase
+    barrier.ts       parede quebrável do Coral: a quebra em onda (`world.breaking`)
     projectiles.ts   movimento, colisão, erosão
     pickups.ts       bolhas de cura
     combat.ts        funil de dano ao jogador, dano a inimigo, hit-stop, empurrão
@@ -77,9 +80,12 @@ src/
   render/            só lê estado; nunca escreve na simulação
     renderer.ts      orquestra camadas, câmera, interpolação, tremor
     background.ts    gradiente + colunas de luz (cache por mapa)
+    ambient.ts       partículas de ambiente (decoração)
     rocks.ts         rocha em OffscreenCanvas, redesenhada só quando a grade muda
-    creatures/       um desenhador por criatura (player, fish, crab, ...)
-    telegraphs.ts    desenho dos avisos
+    creatures/       desenhadores: player, enemies (peixe, circulador), exclusive (os seis
+                     exclusivos), bosses (Caranguejo e despacho), jelly, eye. Cada criatura
+                     desenha o próprio aviso
+    spawns.ts        aviso de nascimento (redemoinho)
     projectiles.ts  particles.ts  pickups.ts
   fx/                efeitos de apresentação
     fx.ts            reage aos eventos da simulação (bolhas, tremor)
@@ -96,6 +102,7 @@ src/
     level.ts         intensidade da música lida do estado da fase
   scenes/
     manager.ts       pilha de cenas + fades (push, pop, replace e resetTo)
+    autopause.ts     pausa sozinha quando a janela perde o foco
     app.ts           `App`: entrada, gerenciador, depuração, configurações e a próxima semente
     flow.ts          a Descida (ordem dos mapas), a sessão (tempo, mortes), `Flow`, formatTime
     navigation.ts    para onde cada saída leva (título, seleção, retry, continuar): um lugar só
@@ -106,13 +113,14 @@ src/
     hud.ts  phaseHud.ts  menu.ts   (menu: lógica testável sem canvas + desenho)
   debug/
     overlay.ts       hitboxes, estados, velocidades, FPS
-    cheats.ts        pular onda, invocar chefe, invencível
+                     (as teclas da §10.1 não têm arquivo de cheats: `scenes/game.ts` lê as
+                     teclas, `sim/phase.ts` pula onda e vai ao chefe, `sim/debug.ts` faz o anel)
 tests/               Vitest, espelhando src/sim e src/world
   fixtures/          rastros gravados do protótipo (paridade)
 tests/balance/       bancada de equilíbrio (M8), `npm run balance`: jogador-robô, luta contra o Olho,
                      custo do passo, economia de cura. Imprime tabelas; não roda no `npm run test`
 tools/               scripts de desenvolvimento (gravar rastros do protótipo) e páginas de prévia:
-                     `eye-preview`, `enemy-preview`, `scenes-preview` (a arte e as telas sem jogar até
+                     `eye-preview`, `jelly-preview`, `enemy-preview`, `scenes-preview` (a arte e as telas sem jogar até
                      elas) e `audio-check` (renderiza os sons num OfflineAudioContext e mede o sinal)
 index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox (§7)
 public/              arquivos estáticos (favicon)
@@ -172,20 +180,20 @@ frame(now):
 
 A simulação emite eventos num buffer por passo. Render, áudio e FX os consomem depois do passo:
 
-```ts
-type SimEvent =
-  | { t: "spearHit"; x: number; y: number; dirX: number; dirY: number; targetR: number }
-  | { t: "spearBlocked"; x: number; y: number }
-  | { t: "projectilePopped"; x: number; y: number; color: string }
-  | { t: "playerHurt"; x: number; y: number; amount: number }
-  | { t: "enemyDied"; x: number; y: number; kind: EnemyKind }
-  | { t: "telegraph"; source: string; attack: string }
-  | { t: "spawnWarn"; x: number; y: number }
-  | { t: "pickup"; x: number; y: number }
-  | { t: "phaseChanged"; state: PhaseState }
-  | { t: "bossPhase"; boss: BossKind; phase: number }
-  | { t: "dash" } | { t: "thrust"; charge: number } | { t: "rockEroded"; x: number; y: number };
-```
+A fonte é `sim/events.ts` (a união `SimEvent`, com um comentário por evento); esta lista só
+agrupa. Todo evento carrega a posição `x`, `y` onde aconteceu, e `soundMap.ts` tem um `switch`
+exaustivo: um evento novo não compila até alguém decidir se ele tem som.
+
+| Grupo | Eventos |
+|---|---|
+| Jogador | `dash`, `chargeStart`, `thrust`, `playerHurt`, `playerDied`, `pickup` |
+| Lança | `spearHit`, `spearBlocked` (Ermitão, sem hit-stop), `projectilePopped` |
+| Inimigos | `enemyDied`, `spawnWarn` |
+| Ataques (inimigos e chefes) | `telegraph` (o aviso começou), `attackStart` (o ataque saiu) |
+| Chefes | `bossAppeared`, `bossPhase`, `bossImpact`, `bossVolley`, `bossDied`, `pullStream` |
+| Mundo | `rockEroded`, `pillarCrumble`, `arenaBreak` (a parede do Coral começou a ceder) |
+| Projéteis | `projectileBurst` (sumiu na rocha ou na borda), `projectileHit` (acertou o jogador) |
+| Fase | `phaseChanged` |
 
 Bolhas, tremor e sons são **reações** a eventos. A simulação decide *que* algo aconteceu e o
 resto decide *como* aparece. O hit-stop é a exceção: é estado de simulação (`world.hitStopMs`),
