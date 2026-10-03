@@ -1,5 +1,6 @@
 import type { BossKind, EnemyKind } from "../config/kinds";
 import type { Palette } from "../config/palette";
+import type { WaveSpec } from "../config/waves";
 
 // Formato do mapa híbrido (ARCHITECTURE §6.3): a estrutura é desenhada à mão em ASCII e os
 // detalhes são procedurais com semente, SÓ nas células marcadas com `~`.
@@ -28,9 +29,8 @@ export interface TileRect {
   h: number;
 }
 
-export interface WaveDef {
-  enemies: readonly { kind: EnemyKind; count: number }[];
-}
+/** Uma onda: nome, levas e o total por tipo (config/waves.ts, GDD §3). */
+export type WaveDef = WaveSpec;
 
 /** Relevo por soma de senos: profundidade = base + a1·sen(f1·x + fase1) + a2·sen(f2·x + fase2) ± ruído. */
 export interface ReliefParams {

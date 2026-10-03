@@ -9,7 +9,8 @@
 export const JELLY = {
   name: "ÁGUA-VIVA COLOSSAL",
   rageLabel: "INCANDESCENTE",
-  hp: 460,
+  /** Era 380 no protótipo e 460 até o redesenho; 640 deixa a luta de três fases mais longa. */
+  hp: 640,
   radius: 42,
   collRadius: 25,
   /** Teto de velocidade da fase 1 (a do protótipo). As fases seguintes usam `speedByPhase`. */

@@ -57,8 +57,8 @@ describe("fluxo da fase", () => {
     const w = createMapWorld(RIFT, 1);
     w.godMode = true;
     runUntil(w, (w) => w.phase?.state === "wave");
-    // espera a onda 1 inteira nascer (4 peixes)
-    runUntil(w, (w) => w.phase?.queue.length === 0 && w.phase.pending.length === 0);
+    // espera a onda 1 inteira nascer (4 peixes, em duas levas)
+    runUntil(w, (w) => w.phase?.surges.length === 0 && w.phase.queue.length === 0 && w.phase.pending.length === 0);
     for (let i = 0; i < 600; i++) stepWorld(w, idle, STEP);
     expect(w.phase?.state).toBe("wave");
     killWave(w);
@@ -74,7 +74,8 @@ describe("fluxo da fase", () => {
     runUntil(w, (w) => w.phase?.state === "wave");
     const f = w.phase;
     if (!f) throw new Error("sem fase");
-    f.queue = Array.from({ length: 12 }, () => "fish" as const);
+    f.surges.length = 0;
+    f.queue = Array.from({ length: 12 }, () => ({ kind: "fish" as const, pattern: "scatter" as const, zone: -1, ang: 0 }));
     const warnAt: number[] = [];
     let firstSpawnAt = -1;
     let maxAlive = 0;

@@ -17,12 +17,51 @@ import { BOSS_DEFS } from "/src/sim/bosses/registry.ts";
 import { debugSkipToBoss } from "/src/sim/phase.ts";
 import { startBarrierBreak } from "/src/sim/barrier.ts";
 import { createMapWorld, stepWorld } from "/src/sim/world.ts";
+import { spawnEnemy } from "/src/sim/enemies/runner.ts";
 import { NO_INTENT } from "/src/sim/player.ts";
 import { Fx } from "/src/fx/fx.ts";
 import { WorldRenderer } from "/src/render/renderer.ts";
 import { CORAL } from "/src/world/maps/coral.ts";
 
+//   /tools/jelly-preview.html?view=jellylings   três medusinhas (as crias) em volta do jogador, no Coral
+//   /tools/jelly-preview.html?sheet=phases    3 fases × (repouso, aviso, acerto da lança): só o corpo
+import { drawJelly } from "/src/render/creatures/jelly.ts";
+import { JELLY } from "/src/config/bosses/jelly.ts";
+
 const q = new URLSearchParams(location.search);
+if (q.has("sheet")) {
+  const CELL = 330, ZOOM = 1.25, DPR = 2;
+  const cols = 3, rows = 3;
+  const canvas = document.getElementById("c");
+  canvas.width = cols * CELL * DPR;
+  canvas.height = rows * CELL * DPR;
+  canvas.style.width = cols * CELL + "px";
+  canvas.style.height = rows * CELL + "px";
+  const g = canvas.getContext("2d");
+  g.scale(DPR, DPR);
+  g.fillStyle = "#082634";
+  g.fillRect(0, 0, cols * CELL, rows * CELL);
+  const boss = (phase, state, flashMs = 0) => ({
+    kind: "jelly", phase, state, attack: "none", flashMs, radius: JELLY.radius,
+    t: 200, stateMs: 400, data: { pulse: 1.1 },
+  });
+  const cell = (i, b, label) => {
+    const x0 = (i % cols) * CELL, y0 = Math.floor(i / cols) * CELL;
+    g.save();
+    g.beginPath(); g.rect(x0, y0, CELL, CELL); g.clip();
+    g.translate(x0 + CELL / 2, y0 + CELL * 0.36); g.scale(ZOOM, ZOOM);
+    drawJelly(g, b, 0, 0, 0.5, null);
+    g.restore();
+    g.fillStyle = "#8fb0bd"; g.font = "12px monospace";
+    g.fillText(label, x0 + 8, y0 + 16);
+  };
+  for (let p = 0; p < 3; p++) {
+    cell(p, boss(p, "think"), `fase ${p + 1} · repouso`);
+    cell(3 + p, boss(p, "telegraph"), `fase ${p + 1} · aviso`);
+    cell(6 + p, boss(p, "think", 60), `fase ${p + 1} · acerto da lança`);
+  }
+  document.title = "pronto";
+} else {
 const view = q.get("view") ?? "shock-t";
 const phase = Number(q.get("phase") ?? 0);
 const STEP = 1000 / 60;
@@ -74,6 +113,18 @@ const VIEWS = {
   ring: () => { force("ring"); run(def.attacks.ring.telegraphMs(boss) + 500); },
   pull: () => { force("pull"); run(def.attacks.pull.telegraphMs(boss) + 400); },
   idle: () => { run(200); },
+  // as crias da Água-viva (GDD §6.2), paradas em volta do jogador, uma delas no aviso do tiro
+  jellylings: () => {
+    boss.x = boss.prevX = HOME.x - 600; boss.y = boss.prevY = HOME.y;
+    for (const [dx, dy] of [[-120, -70], [-40, -130], [90, -90]]) {
+      const e = spawnEnemy(w, "jellyling", HOME.x + dx, HOME.y + dy);
+      e.t = 1e9;
+    }
+    const warn = w.enemies.get(1);
+    warn.state = "telegraph"; warn.stateMs = 600; warn.t = 200;
+    for (let i = 0; i < 20; i++) { w.player.x = w.player.prevX = HOME.x + 215; w.player.y = w.player.prevY = HOME.y + 55; stepWorld(w, NO_INTENT, STEP); w.player.hp = 100; }
+    for (let i = 0; i < w.enemies.count; i++) { const e = w.enemies.get(i); e.state === "telegraph" ? (e.t = 200) : (e.t = 1e9); }
+  },
 };
 (VIEWS[view] ?? VIEWS.idle)();
 
@@ -109,12 +160,13 @@ if (view.startsWith("map-")) {
     w.camera.y = w.camera.prevY = 380;
   } else {
     // câmera centrada entre o chefe e o jogador
-    w.camera.x = w.camera.prevX = boss.x + 100 - 480;
+    w.camera.x = w.camera.prevX = (view === "jellylings" ? HOME.x - 40 : boss.x + 100) - 480;
     w.camera.y = w.camera.prevY = boss.y - 250;
   }
   renderer.draw(g, w, new Fx(), 1);
 }
 document.title = "pronto";
+}
 </script>
 </body>
 </html>

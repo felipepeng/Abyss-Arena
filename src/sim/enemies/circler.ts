@@ -1,5 +1,6 @@
 import { CIRCLER } from "../../config/enemies/circler";
 import { len, TAU } from "../../core/math";
+import { pathTarget } from "../nav";
 import type { EnemyDef } from "./types";
 
 // Circulador: orbita o jogador, avisa (freia e trava a mira), dá uma estocada curta e
@@ -40,13 +41,16 @@ export const CIRCLER_DEF: EnemyDef = {
         const p = w.player;
         const ang = (e.data.orbitAng ?? 0) + CIRCLER.orbitSpeed * (e.data.orbitDir ?? 1) * dt;
         e.data.orbitAng = ang;
-        const ox = p.x + Math.cos(ang) * CIRCLER.orbitR - e.x;
-        const oy = p.y + Math.sin(ang) * CIRCLER.orbitR - e.y;
+        // com a rocha entre os dois, em vez do ponto da órbita vai pelo desvio até o jogador
+        pathTarget(w, e);
+        const detour = w.nav.detour;
+        const ox = (detour ? w.nav.wx : p.x + Math.cos(ang) * CIRCLER.orbitR) - e.x;
+        const oy = (detour ? w.nav.wy : p.y + Math.sin(ang) * CIRCLER.orbitR) - e.y;
         const od = len(ox, oy) || 1;
         e.vx += (ox / od) * CIRCLER.accel * dt;
         e.vy += (oy / od) * CIRCLER.accel * dt;
         const d = len(p.x - e.x, p.y - e.y) || 1;
-        if (e.t <= 0 && d < CIRCLER.orbitR * CIRCLER.windupRangeScale) return "windup";
+        if (e.t <= 0 && d < CIRCLER.orbitR * CIRCLER.windupRangeScale && !detour) return "windup";
       },
     },
 

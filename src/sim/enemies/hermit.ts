@@ -1,6 +1,7 @@
 import { HERMIT } from "../../config/enemies/hermit";
 import { angDiff, len } from "../../core/math";
 import { hurtPlayer } from "../combat";
+import { pathTarget } from "../nav";
 import type { World } from "../world";
 import type { Enemy, EnemyDef } from "./types";
 
@@ -49,11 +50,15 @@ export const HERMIT_DEF: EnemyDef = {
         const dx = w.player.x - e.x;
         const dy = w.player.y - e.y;
         const dist = len(dx, dy) || 1;
+        pathTarget(w, e);
+        const ax = w.nav.wx - e.x;
+        const ay = w.nav.wy - e.y;
+        const ad = len(ax, ay) || 1;
         if (dist > HERMIT.holdDist) {
-          e.vx += (dx / dist) * HERMIT.accel * dt;
-          e.vy += (dy / dist) * HERMIT.accel * dt;
+          e.vx += (ax / ad) * HERMIT.accel * dt;
+          e.vy += (ay / ad) * HERMIT.accel * dt;
         }
-        if (dist < HERMIT.attackRange && e.t <= 0) return "telegraph";
+        if (dist < HERMIT.attackRange && e.t <= 0 && !w.nav.detour) return "telegraph";
       },
     },
 

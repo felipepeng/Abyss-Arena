@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia do Caranguejo</title>
+<style>html,body{margin:0;background:#0a1822}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: desenha o Caranguejo (o `drawCrab` real) em fases, avisos e
+// ângulos, ou num quadro do jogo de verdade, para comparar o desenho antes/depois de um ajuste
+// sem pilotar até o chefe.
+//   /tools/crab-preview.html?sheet=phases    2 fases × (repouso, pinça no aviso, outro ângulo, acerto)
+//   /tools/crab-preview.html?sheet=angles    8 direções de olhar (fase 1, repouso)
+//   /tools/crab-preview.html?view=idle|dash|pinch|call&phase=0|1   um quadro do jogo (Leito das Fendas)
+import { drawCrab } from "/src/render/creatures/crab.ts";
+import { CRAB } from "/src/config/bosses/crab.ts";
+import { BOSS_DEFS } from "/src/sim/bosses/registry.ts";
+import { debugSkipToBoss } from "/src/sim/phase.ts";
+import { createMapWorld, stepWorld } from "/src/sim/world.ts";
+import { NO_INTENT } from "/src/sim/player.ts";
+import { Fx } from "/src/fx/fx.ts";
+import { WorldRenderer } from "/src/render/renderer.ts";
+import { RIFT } from "/src/world/maps/rift.ts";
+
+const q = new URLSearchParams(location.search);
+const canvas = document.getElementById("c");
+const g = canvas.getContext("2d");
+
+if (q.has("sheet")) {
+  const sheet = q.get("sheet");
+  const CELL = 320, ZOOM = 1.25, DPR = 2;
+  const cols = 4, rows = 2;
+  canvas.width = cols * CELL * DPR;
+  canvas.height = rows * CELL * DPR;
+  canvas.style.width = cols * CELL + "px";
+  canvas.style.height = rows * CELL + "px";
+  g.scale(DPR, DPR);
+  g.fillStyle = "#183040";
+  g.fillRect(0, 0, cols * CELL, rows * CELL);
+
+  const boss = (phase, state, attack, flashMs = 0) => ({
+    kind: "crab", phase, state, attack, flashMs, radius: CRAB.radius, dirX: 1, dirY: 0,
+    t: 200, stateMs: 400, data: {},
+  });
+  const cell = (i, b, ang, label) => {
+    const cx = (i % cols) * CELL + CELL / 2, cy = Math.floor(i / cols) * CELL + CELL / 2;
+    g.save();
+    g.beginPath(); g.rect((i % cols) * CELL, Math.floor(i / cols) * CELL, CELL, CELL); g.clip();
+    g.translate(cx, cy); g.scale(ZOOM, ZOOM);
+    drawCrab(g, b, 0, 0, ang, 1.3);
+    g.restore();
+    g.fillStyle = "#9ab0c0"; g.font = "12px monospace";
+    g.fillText(label, (i % cols) * CELL + 8, Math.floor(i / cols) * CELL + 16);
+  };
+  if (sheet === "angles") {
+    for (let i = 0; i < 8; i++) cell(i, boss(0, "think", "none"), (i / 8) * Math.PI * 2, `olhar ${i * 45}°`);
+  } else {
+    for (let p = 0; p < 2; p++) {
+      cell(p * 2, boss(p, "think", "none"), 0, `fase ${p + 1} · repouso`);
+      cell(p * 2 + 1, boss(p, "telegraph", "pinch"), 0, `fase ${p + 1} · pinça (aviso)`);
+      cell(4 + p * 2, boss(p, "think", "none"), Math.PI * 0.8, `fase ${p + 1} · outro ângulo`);
+      cell(4 + p * 2 + 1, boss(p, "think", "none", 60), 0, `fase ${p + 1} · acerto da lança`);
+    }
+  }
+} else {
+  const view = q.get("view") ?? "idle";
+  const phase = Number(q.get("phase") ?? 0);
+  const STEP = 1000 / 60;
+  canvas.width = 960; canvas.height = 540;
+  const w = createMapWorld(RIFT, 3);
+  w.godMode = true;
+  debugSkipToBoss(w);
+  for (let i = 0; i < 400 && w.phase?.state !== "boss"; i++) stepWorld(w, NO_INTENT, STEP);
+  const boss = w.phase.boss;
+  boss.phase = phase;
+  boss.state = "think";
+  boss.t = 1e9;
+  const HOME = { x: boss.x, y: boss.y };
+  // jogador a 150 px, à direita, para o Caranguejo olhar para o lado dele
+  const place = () => {
+    w.player.x = w.player.prevX = HOME.x + 150;
+    w.player.y = w.player.prevY = HOME.y + 20;
+    w.player.vx = w.player.vy = 0;
+    boss.x = boss.prevX = HOME.x;
+    boss.y = boss.prevY = HOME.y;
+    boss.vx = boss.vy = 0;
+    boss.ang = boss.prevAng = 0;
+  };
+  place();
+  const def = BOSS_DEFS.crab;
+  const force = (name) => {
+    boss.state = "telegraph";
+    boss.attack = name;
+    boss.t = boss.stateMs = def.attacks[name].telegraphMs(boss);
+    boss.dirX = 1; boss.dirY = 0;
+  };
+  const run = (ms) => { for (let t = 0; t < ms; t += STEP) { place(); stepWorld(w, NO_INTENT, STEP); w.player.hp = 100; } };
+  const VIEWS = {
+    idle: () => run(200),
+    dash: () => { force("dash"); run(def.attacks.dash.telegraphMs(boss) * 0.8); },
+    pinch: () => { force("pinch"); run(def.attacks.pinch.telegraphMs(boss) * 0.8); },
+    call: () => { force("call"); run(def.attacks.call.telegraphMs(boss) * 0.6); },
+  };
+  (VIEWS[view] ?? VIEWS.idle)();
+  w.camera.x = w.camera.prevX = boss.x + 60 - 480;
+  w.camera.y = w.camera.prevY = boss.y - 270;
+  new WorldRenderer(RIFT.palette).draw(g, w, new Fx(), 1);
+}
+document.title = "pronto";
+</script>
+</body>
+</html>

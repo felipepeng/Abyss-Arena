@@ -16,6 +16,7 @@ import { makeEnemySlot, removeDeadEnemies, spawnEnemy, stepEnemies } from "./ene
 import type { Enemy } from "./enemies/types";
 import type { SimEvent } from "./events";
 import { stepBarrierBreak, type BarrierBreak } from "./barrier";
+import { createNav, updateNav, type Nav } from "./nav";
 import { createPhaseFlow, stepPhase, type PhaseFlow, type PhaseSetup } from "./phase";
 import { makeHealSlot, stepPickups, type HealPickup } from "./pickups";
 import { createPlayer, stepPlayer, type Player, type PlayerIntent } from "./player";
@@ -38,6 +39,8 @@ export interface World {
   readonly events: EventBuffer<SimEvent>;
   /** Nascimento provisório por tempo (arena de teste). */
   readonly spawner: TestSpawner;
+  /** Mapa de distâncias até o jogador: como os inimigos contornam a rocha (sim/nav.ts). */
+  readonly nav: Nav;
   /** Fluxo de fase (ondas → chefe). Nulo na arena de teste. */
   readonly phase: PhaseFlow | null;
   /** Pilares do Fosso: índices de bloco de cada um. O Olho os dissolve por fase. */
@@ -94,6 +97,7 @@ export function createWorld(seed: number, setup: WorldSetup): World {
     camera: createCamera(player, setup.grid),
     events: new EventBuffer(),
     spawner: createTestSpawner(setup.spawner),
+    nav: createNav(setup.grid),
     phase: setup.phase ? createPhaseFlow(setup.phase) : null,
     pillars: setup.pillars ? setup.pillars.map((p) => [...p]) : [],
     pillarsTotal: setup.pillars?.length ?? 0,
@@ -152,6 +156,7 @@ export function stepWorld(w: World, intent: PlayerIntent, dtMs: number): void {
 
   // mesma ordem do protótipo: jogador → inimigos → chefe → projéteis → nascimento → câmera
   if (!w.playerDead) stepPlayer(w, intent, dtMs);
+  updateNav(w);
   stepEnemies(w, dtMs);
   stepBosses(w, dtMs);
   stepBarrierBreak(w, dtMs);

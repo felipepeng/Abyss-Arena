@@ -294,7 +294,7 @@ v1; build publicada.
   máquina e não foi testado.**
 - **Polimento:** o jogo pausa sozinho quando a janela perde o foco; favicon; README e CLAUDE.md
   atualizados.
-- **Água-viva mais difícil (depois do M8):** 3 fases, 460 de vida, três ataques novos (onda de choque,
+- **Água-viva mais difícil (depois do M8):** 3 fases, 640 de vida (460 até o redesenho), três ataques novos (onda de choque,
   chamado das medusinhas e farol) e combos nas fases finais. O código dos ataques antigos é o do
   protótipo: a paridade roda com os números originais congelados em `tests/sim/protoJelly.ts`.
   Detalhes e medições no GDD §8.2.
@@ -303,6 +303,16 @@ v1; build publicada.
   câmara externa com colunas de coral. Depois da quebra ela ronda o jogador como o Olho, em vez de
   ficar sempre acima dele. Custo no navegador durante a quebra: 1,6 ms por quadro em média, 7,2 ms
   no pior. Detalhes no GDD §7.2 e §8.2.
+- **Medusinha, Água-viva, ondas e navegação (depois do M8):**
+  - A Água-viva passou a **640 de vida** (era 460).
+  - A Medusinha foi redesenhada como miniatura da mãe.
+  - **Bug do Coral e do Fosso corrigido:** os inimigos agora contornam a rocha (`sim/nav.ts`). Antes, peixes,
+    medusinhas e vigias ficavam presos atrás de um pilar e a onda nunca terminava (3 a 5 presos por onda no
+    Coral, 1 a 4 no Fosso; agora 0 em 6 sementes).
+  - **Ondas mais dinâmicas:** cada onda é uma sequência de levas com nome (espalhada, flanco, pinça e cerco),
+    que entram quando sobram poucos ou passa um tempo (GDD §3.3). Os totais por onda não mudaram.
+  - Falta jogar para saber se a pressão está certa: o robô diz que não ficou mais difícil, mas joga pior que
+    uma pessoa.
 - **O que a bancada NÃO diz:** o jogador-robô não vence nenhuma fase (joga pior que uma pessoa),
   então "a Descida é vencível por quem conhece os padrões" **não foi verificado**. Só jogar diz.
   Bugs que a bancada não achou não estão descartados.

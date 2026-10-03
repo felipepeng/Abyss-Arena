@@ -1,4 +1,5 @@
 import type { Palette } from "../palette";
+import { makeWave, type WaveSpec } from "../waves";
 
 // Leito das Fendas (GDD §7.1, 🟡 proposta): números de ajuste do mapa. A estrutura desenhada
 // está em world/maps/rift.ts.
@@ -29,22 +30,23 @@ export const RIFT_PROCEDURAL = {
   blobs: { count: [3, 5] as const, rx: [1.2, 2.2] as const, ry: [1.0, 2.0] as const, edgeNoise: 0.18 },
 };
 
-/** Ondas (GDD §3.2, 🟡). Os ouriços ocupam posições fixas do mapa (RIFT_URCHIN_SPOTS). */
-export const RIFT_WAVES = [
-  { enemies: [{ kind: "fish", count: 4 }] },
-  {
-    enemies: [
-      { kind: "fish", count: 3 },
-      { kind: "circler", count: 2 },
-      { kind: "hermit", count: 2 },
-    ],
-  },
-  {
-    enemies: [
-      { kind: "fish", count: 3 },
-      { kind: "circler", count: 2 },
-      { kind: "hermit", count: 3 },
-      { kind: "urchin", count: 2 },
-    ],
-  },
-] as const;
+/**
+ * Ondas (GDD §3.2 e §3.3). Os totais por tipo são os do GDD; o que muda é como chegam: cada onda é
+ * uma sequência de levas (config/waves.ts). Os ouriços ocupam posições fixas (RIFT_URCHIN_SPOTS).
+ */
+export const RIFT_WAVES: readonly WaveSpec[] = [
+  makeWave("CARDUME", [
+    { enemies: [{ kind: "fish", count: 2 }], pattern: "scatter" },
+    { enemies: [{ kind: "fish", count: 2 }], pattern: "flank", afterMs: 6500, whenAliveAtMost: 1 },
+  ]),
+  makeWave("PINÇA", [
+    { enemies: [{ kind: "fish", count: 2 }, { kind: "circler", count: 2 }], pattern: "scatter" },
+    { enemies: [{ kind: "fish", count: 1 }, { kind: "hermit", count: 2 }], pattern: "pincer", afterMs: 9000, whenAliveAtMost: 2 },
+  ]),
+  makeWave("CERCO", [
+    { enemies: [{ kind: "fish", count: 3 }, { kind: "urchin", count: 2 }], pattern: "scatter" },
+    { enemies: [{ kind: "circler", count: 2 }], pattern: "flank", afterMs: 8000, whenAliveAtMost: 2 },
+    { enemies: [{ kind: "hermit", count: 3 }], pattern: "ring", afterMs: 9000, whenAliveAtMost: 2 },
+  ]),
+];
+

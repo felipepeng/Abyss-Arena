@@ -10,11 +10,14 @@
 <script type="module">
 // Ferramenta de desenvolvimento: desenha os inimigos exclusivos (o `drawEnemy` real) em
 // repouso, no aviso e no ataque, ampliados, para ajustar a arte sem jogar até eles.
-//   /tools/enemy-preview.html
+//   /tools/enemy-preview.html                      todos os exclusivos
+//   /tools/enemy-preview.html?kinds=jellyling,watcher   só estes
 import { drawEnemy } from "/src/render/creatures/enemies.ts";
 import { ENEMY_DEFS } from "/src/sim/enemies/registry.ts";
 
-const KINDS = ["hermit", "urchin", "jellyling", "anemone", "watcher", "lamprey"];
+const ALL = ["hermit", "urchin", "jellyling", "anemone", "watcher", "lamprey"];
+const only = new URLSearchParams(location.search).get("kinds");
+const KINDS = only ? only.split(",").filter((k) => ALL.includes(k)) : ALL;
 // [estado, progresso do aviso] de cada coluna, por espécie
 const STATES = {
   hermit: [["chase", 0], ["telegraph", 0.7], ["strike", 0.5]],

@@ -451,7 +451,7 @@ describe("ondas e posições dos mapas", () => {
     for (let i = 0; i < 40000; i++) {
       const f = w.phase;
       if (!f) throw new Error("sem fase");
-      if (f.wave === n && f.state === "wave" && f.queue.length === 0 && f.pending.length === 0) return;
+      if (f.wave === n && f.state === "wave" && f.surges.length === 0 && f.queue.length === 0 && f.pending.length === 0) return;
       for (let k = 0; k < w.enemies.count; k++) {
         const e = w.enemies.get(k);
         if (e.fromWave && (f.wave < n || e.kind !== keep)) e.dead = true;

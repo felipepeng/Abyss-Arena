@@ -1,5 +1,6 @@
 import { LAMPREY } from "../../config/enemies/lamprey";
 import { angLerp, clamp, len, TAU } from "../../core/math";
+import { pathTarget } from "../nav";
 import type { EnemyDef } from "./types";
 
 // Lampreia: pequena e rápida, vem em enxame. Persegue direto, avisa (a boca se abre e
@@ -41,8 +42,11 @@ export const LAMPREY_DEF: EnemyDef = {
         const dist = len(p.x - e.x, p.y - e.y) || 1;
         // o deslocamento some conforme ela chega perto: de longe espalha, de perto ataca de frente
         const spread = clamp((dist - LAMPREY.attackRange) / LAMPREY.spreadFadeDist, 0, 1);
-        const tx = p.x + (e.data.offX ?? 0) * spread - e.x;
-        const ty = p.y + (e.data.offY ?? 0) * spread - e.y;
+        // com a rocha entre os dois, em vez do ponto deslocado vai pelo desvio até o jogador
+        pathTarget(w, e);
+        const detour = w.nav.detour;
+        const tx = (detour ? w.nav.wx : p.x + (e.data.offX ?? 0) * spread) - e.x;
+        const ty = (detour ? w.nav.wy : p.y + (e.data.offY ?? 0) * spread) - e.y;
         const td = len(tx, ty) || 1;
         if (dist < LAMPREY.sightR) {
           e.vx += (tx / td) * LAMPREY.accel * dt;
@@ -52,7 +56,7 @@ export const LAMPREY_DEF: EnemyDef = {
           e.vx += (tx / td) * LAMPREY.accel * dt;
           e.vy += (ty / td) * LAMPREY.accel * dt;
         }
-        if (dist < LAMPREY.attackRange && e.t <= 0) return "telegraph";
+        if (dist < LAMPREY.attackRange && e.t <= 0 && !detour) return "telegraph";
       },
     },
 

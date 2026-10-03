@@ -1,4 +1,5 @@
 import { FONT_FAMILY, VIEW } from "../config/system";
+import { SURGES } from "../config/waves";
 import { clamp, len } from "../core/math";
 import { BOSS_DEFS } from "../sim/bosses/registry";
 import type { Boss, BossKind } from "../sim/bosses/types";
@@ -33,12 +34,32 @@ export function drawPhaseHud(g: CanvasRenderingContext2D, w: World, title: Title
   if (f.state === "wave") {
     g.font = `13px ${FONT_FAMILY}`;
     g.fillStyle = "rgba(223,240,255,0.85)";
-    g.fillText(`ONDA ${f.wave}/${f.setup.waves.length} · ${remainingInWave(w, f)} restantes`, W / 2, 24);
+    const title = f.title ? ` · ${f.title}` : "";
+    g.fillText(`ONDA ${f.wave}/${f.setup.waves.length}${title} · ${remainingInWave(w, f)} restantes`, W / 2, 24);
+    // a leva que acabou de entrar ("PINÇA!"): aparece forte e some devagar
+    if (f.bannerMs > 0 && f.banner) {
+      const k = f.bannerMs / SURGES.bannerMs;
+      g.globalAlpha = clamp(Math.min(k / 0.5, (1 - k) / 0.1), 0, 1);
+      g.font = `bold 26px ${FONT_FAMILY}`;
+      g.fillStyle = "#ffd36a";
+      g.fillText(f.banner, W / 2, 62);
+      g.globalAlpha = 1;
+    }
   }
 
   // entre as ondas: o número da próxima
   if (f.state === "interlude" && f.wave < f.setup.waves.length) {
-    bigText(g, `ONDA ${f.wave + 1}`, fadeInOut(1 - f.t / f.stateMs), "#dff0ff");
+    const a = fadeInOut(1 - f.t / f.stateMs);
+    bigText(g, `ONDA ${f.wave + 1}`, a, "#dff0ff");
+    // o nome da onda que vem, logo abaixo do número
+    const next = f.setup.waves[f.wave]?.title;
+    if (next) {
+      g.globalAlpha = a;
+      g.font = `18px ${FONT_FAMILY}`;
+      g.fillStyle = "#ffd36a";
+      g.fillText(next, W / 2, VIEW.height / 2 - 28);
+      g.globalAlpha = 1;
+    }
   }
 
   const boss = f.boss;

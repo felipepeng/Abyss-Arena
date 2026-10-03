@@ -1,4 +1,5 @@
 import type { Palette } from "../palette";
+import { makeWave, type WaveSpec } from "../waves";
 
 // Jardim de Corais Luminosos (GDD §7.2, 🟡 proposta): números de ajuste do mapa. A estrutura
 // desenhada está em world/maps/coral.ts.
@@ -71,28 +72,24 @@ export const CORAL_OUTER_COLUMNS: readonly { x: number; rows: number; from: "flo
   { x: 75, rows: 7, from: "ceiling" },
 ];
 
-/** Ondas (GDD §3.2). As anêmonas ocupam as posições fixas marcadas nos corais (CORAL_ANEMONE_SPOTS). */
-export const CORAL_WAVES = [
-  {
-    enemies: [
-      { kind: "fish", count: 3 },
-      { kind: "jellyling", count: 2 },
-    ],
-  },
-  {
-    enemies: [
-      { kind: "fish", count: 2 },
-      { kind: "circler", count: 2 },
-      { kind: "jellyling", count: 2 },
-      { kind: "anemone", count: 2 },
-    ],
-  },
-  {
-    enemies: [
-      { kind: "fish", count: 3 },
-      { kind: "circler", count: 3 },
-      { kind: "jellyling", count: 3 },
-      { kind: "anemone", count: 3 },
-    ],
-  },
-] as const;
+/**
+ * Ondas (GDD §3.2 e §3.3). Os totais por tipo são os do GDD; o que muda é como chegam: cada onda é
+ * uma sequência de levas (config/waves.ts). As anêmonas ocupam as posições fixas marcadas nos
+ * corais (CORAL_ANEMONE_SPOTS).
+ */
+export const CORAL_WAVES: readonly WaveSpec[] = [
+  makeWave("À DERIVA", [
+    { enemies: [{ kind: "fish", count: 3 }], pattern: "scatter" },
+    { enemies: [{ kind: "jellyling", count: 2 }], pattern: "flank", afterMs: 6500, whenAliveAtMost: 1 },
+  ]),
+  makeWave("PINÇA", [
+    { enemies: [{ kind: "anemone", count: 2 }, { kind: "jellyling", count: 2 }], pattern: "scatter" },
+    { enemies: [{ kind: "fish", count: 2 }, { kind: "circler", count: 2 }], pattern: "pincer", afterMs: 9000, whenAliveAtMost: 2 },
+  ]),
+  makeWave("MARÉ", [
+    { enemies: [{ kind: "anemone", count: 3 }, { kind: "jellyling", count: 3 }], pattern: "scatter" },
+    { enemies: [{ kind: "fish", count: 3 }], pattern: "flank", afterMs: 8000, whenAliveAtMost: 3 },
+    { enemies: [{ kind: "circler", count: 3 }], pattern: "ring", afterMs: 9000, whenAliveAtMost: 2 },
+  ]),
+];
+

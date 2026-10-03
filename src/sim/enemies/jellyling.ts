@@ -1,5 +1,6 @@
 import { JELLYLING } from "../../config/enemies/jellyling";
 import { angLerp, len, TAU } from "../../core/math";
+import { pathTarget } from "../nav";
 import { fireProjectile } from "../projectiles";
 import { canSee } from "./perception";
 import type { EnemyDef } from "./types";
@@ -43,14 +44,24 @@ export const JELLYLING_DEF: EnemyDef = {
         const dx = w.player.x - e.x;
         const dy = w.player.y - e.y;
         const dist = len(dx, dy) || 1;
-        // radial: aproxima se longe, afasta se perto, sem corrigir dentro da faixa
-        const radial = Math.max(-1, Math.min(1, (dist - JELLYLING.keepDist) / JELLYLING.keepBand));
-        e.vx += (dx / dist) * radial * JELLYLING.accel * dt;
-        e.vy += (dy / dist) * radial * JELLYLING.accel * dt;
-        // tangencial: dá a volta no jogador, o que também a tira de trás de um pilar
-        const s = (e.data.strafeDir ?? 1) * JELLYLING.strafeAccel * JELLYLING.accel * dt;
-        e.vx += (-dy / dist) * s;
-        e.vy += (dx / dist) * s;
+        pathTarget(w, e);
+        if (w.nav.detour) {
+          // com a rocha no meio, contorna até enxergar o jogador (sem manter distância nem girar)
+          const ax = w.nav.wx - e.x;
+          const ay = w.nav.wy - e.y;
+          const ad = len(ax, ay) || 1;
+          e.vx += (ax / ad) * JELLYLING.accel * dt;
+          e.vy += (ay / ad) * JELLYLING.accel * dt;
+        } else {
+          // radial: aproxima se longe, afasta se perto, sem corrigir dentro da faixa
+          const radial = Math.max(-1, Math.min(1, (dist - JELLYLING.keepDist) / JELLYLING.keepBand));
+          e.vx += (dx / dist) * radial * JELLYLING.accel * dt;
+          e.vy += (dy / dist) * radial * JELLYLING.accel * dt;
+          // tangencial: dá a volta no jogador, o que também a tira de trás de um pilar
+          const s = (e.data.strafeDir ?? 1) * JELLYLING.strafeAccel * JELLYLING.accel * dt;
+          e.vx += (-dy / dist) * s;
+          e.vy += (dx / dist) * s;
+        }
         // sobe e desce
         const bob = (e.data.bob ?? 0) + JELLYLING.bobRate * dt;
         e.data.bob = bob;

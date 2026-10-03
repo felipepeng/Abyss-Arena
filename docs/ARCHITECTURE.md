@@ -50,7 +50,9 @@ src/
     bosses/    crab.ts jelly.ts eye.ts
     maps/      rift.ts coral.ts abyss.ts  (paleta, relevo procedural, ondas, cartão de título)
     kinds.ts         nomes dos tipos de inimigo e de chefe (world/ e sim/ precisam deles)
-    waves.ts         tempos do fluxo da fase e do nascimento das ondas
+    waves.ts         tempos do fluxo da fase e do nascimento das ondas; as levas (`SurgeDef`,
+                     `makeWave`, `SURGES`) que descrevem como cada onda chega
+    nav.ts           navegação dos inimigos: folga da rocha, olhar à frente, passo da amostragem
   sim/               simulação pura (determinística dada a semente)
     world.ts         estado do mundo e `stepWorld`: grade, entidades, projéteis, pickups, câmera
     body.ts          corpo físico comum (posição, velocidade, prev*, raios)
@@ -61,6 +63,8 @@ src/
     player.ts        nado, dash (com i-frames), máquina da lança, hitbox
     enemies/         comportamentos dos inimigos (um arquivo por tipo) + runner genérico +
                      registry.ts (tipo → EnemyDef); o saco de pancada é um tipo como os outros
+    nav.ts           navegação: mapa de distâncias até o jogador (busca em largura na grade) e
+                     `pathTarget`, que diz para onde ir quando a rocha está no caminho
     spawner.ts       nascimento provisório por tempo (M2; sai com as ondas do M3)
     debug.ts         ações de depuração que mexem na simulação (anel de projéteis)
     bosses/          runner genérico de chefe + um arquivo por chefe + registry.ts
@@ -83,7 +87,7 @@ src/
     ambient.ts       partículas de ambiente (decoração)
     rocks.ts         rocha em OffscreenCanvas, redesenhada só quando a grade muda
     creatures/       desenhadores: player, enemies (peixe, circulador), exclusive (os seis
-                     exclusivos), bosses (Caranguejo e despacho), jelly, eye. Cada criatura
+                     exclusivos), bosses (só despacha), crab, jelly, eye. Cada criatura
                      desenha o próprio aviso
     spawns.ts        aviso de nascimento (redemoinho)
     projectiles.ts  particles.ts  pickups.ts
@@ -120,8 +124,11 @@ tests/               Vitest, espelhando src/sim e src/world
 tests/balance/       bancada de equilíbrio (M8), `npm run balance`: jogador-robô, luta contra o Olho,
                      custo do passo, economia de cura. Imprime tabelas; não roda no `npm run test`
 tools/               scripts de desenvolvimento (gravar rastros do protótipo) e páginas de prévia:
-                     `eye-preview`, `jelly-preview`, `enemy-preview`, `scenes-preview` (a arte e as telas sem jogar até
-                     elas) e `audio-check` (renderiza os sons num OfflineAudioContext e mede o sinal)
+                     `eye-preview`, `crab-preview`, `jelly-preview`, `enemy-preview`, `scenes-preview` (a arte e as telas sem jogar até
+                     elas) e `audio-check` (renderiza os sons num OfflineAudioContext e mede o sinal). As prévias dos
+                     três chefes aceitam `?sheet=phases` (uma folha com o corpo em cada fase) e as do
+                     Caranguejo e da Água-viva também `?view=...` (um quadro do jogo de verdade); os
+                     prints de antes e depois de cada redesenho ficam em `docs/screenshots/<chefe>/`
 index.html           página única na raiz (convenção do Vite); o CSS faz o letterbox (§7)
 public/              arquivos estáticos (favicon)
 prototipo/           o protótipo original, referência de paridade
@@ -278,6 +285,18 @@ drop. Os estados só decidem a aceleração, o alvo e as transições.
 visão pela grade, `hasLineOfSight` em `sim/geometry.ts`). O peixe
 continua usando só distância, como no protótipo, mas a Medusinha e a Vigia usam linha de visão,
 para que o coral e os pilares funcionem como cobertura contra elas.
+
+**Navegação** (`sim/nav.ts`): sem ela, todo perseguidor anda em linha reta e fica preso no primeiro
+pilar. `updateNav` refaz, uma vez por passo e só se o jogador trocou de bloco ou a grade mudou
+(`Grid.version`), um mapa de distâncias (busca em largura de 8 vizinhos, sem cortar quina, só por
+blocos com 1 bloco de folga da rocha). `pathTarget(w, e)` escreve em `w.nav`: com o caminho reto até o
+jogador livre (três raios paralelos, da largura do corpo), `detour = false` e `wx, wy` é o próprio
+jogador, e cada inimigo usa o alvo que já usava (a órbita do Circulador, o ponto deslocado da
+Lampreia); com a rocha no meio, `detour = true` e `wx, wy` é o ponto mais longe do caminho que ainda
+se vê. A paridade com o protótipo, que roda em arena aberta, fica intacta porque o desvio nunca
+dispara ali. **Sem alocar:** o segmento em teste vai em campos de `w.nav`, não em argumentos (o V8
+empacota decimais passados a funções que ele não embute; foi o `tests/perf/allocation.test.ts` que
+mostrou).
 
 ### 5.4 Chefes por dados
 
@@ -523,15 +542,20 @@ qualquer estado (exceto cleared) → failed   (vida do jogador = 0)
 | Estado | Duração | Sai quando |
 |---|---|---|
 | `intro` | 2500 ms | tempo |
-| `wave(n)` | — | fila vazia **e** nenhum inimigo da onda vivo |
+| `wave(n)` | — | nenhuma leva por entrar, fila vazia **e** nenhum inimigo da onda vivo |
 | `interlude` | 2500 ms (3000 antes do chefe) | tempo |
 | `bossIntro` | 1500 ms | tempo; o chefe fica inerte e invulnerável |
 | `boss` | — | chefe morto → `cleared` |
 | `cleared` | 1200 ms | "FASE CONCLUÍDA" aparece no fim; a saída (próximo mapa, seleção) vem no M6 |
 
-O **spawner de onda** (fila, teto de 6 vivos, intervalo de 600 ms, aviso de 500 ms, zonas do
-mapa) mora aqui. Os capangas invocados pelo Caranguejo entram direto no mundo, com
-`noDrop = true`, e não contam na onda.
+O **spawner de onda** (levas, fila, tetos, intervalos, aviso de 500 ms, zonas do mapa) mora aqui.
+Uma onda é um `WaveDef` (`config/waves.ts`): um nome, as **levas** (`SurgeDef`: inimigos, padrão e
+gatilhos `afterMs` e `whenAliveAtMost`) e o total por tipo, derivado das levas por `makeWave` (o
+GDD §3.2 continua sendo a tabela de totais). `PhaseFlow.surges` guarda as que ainda não entraram;
+`releaseSurge` põe os inimigos de uma leva em `queue`, já com a zona (flanco e pinça) ou o ângulo
+(cerco) de cada um; `remainingInWave` conta também as levas futuras, então a onda só termina depois
+da última. `f.banner` leva o aviso ("PINÇA!") ao HUD. Os capangas invocados pelo Caranguejo entram
+direto no mundo, com `noDrop = true`, e não contam na onda.
 
 ---
 
@@ -567,8 +591,15 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
 - **Funil de dano:** 667 ms de invulnerabilidade; metade do dano fora do ataque.
 - **Colisão:** um corpo a 640 px/s contra uma parede de 1 bloco não atravessa; nenhum corpo
   termina um passo dentro da rocha.
-- **Fase:** sequência de estados; a onda só termina com todos mortos; `failed` a partir de
-  qualquer estado.
+- **Fase:** sequência de estados; a onda só termina com todos mortos e todas as levas dadas;
+  `failed` a partir de qualquer estado.
+- **Levas** (`tests/sim/surges.test.ts`): os gatilhos (pouco em campo, ou o tempo); flanco numa zona só,
+  pinça em duas e o cerco em anel; os estáticos fora do padrão; todo mapa com onda nomeada e levas que
+  somam o total.
+- **Navegação** (`tests/sim/nav.test.ts`): cada tipo de inimigo atrás de uma parede chega ao jogador
+  (ou acha um ângulo, a Medusinha e a Vigia); com o caminho livre anda reto; o peixe não investe
+  contra a parede; o mapa se refaz quando a rocha muda; nos três mapas, com o jogador parado, ninguém
+  fica preso (`tests/balance/stuckMeasure.ts`).
 - **Chefes:** sorteio com reroll; troca de fase nos limiares; `ω · hoverDist < 250` para todo
   ataque rotacional do config.
 - **Mapas:** mesma semente → mesma grade; o procedural não toca células fixas; toda zona de
@@ -595,7 +626,8 @@ Só lógica pura de `sim/` e `world/`, sem DOM:
   diferença, coberta pelos testes de colisão.
 - **Alocação:** `tests/perf/allocation.test.ts` mede o crescimento do heap num trecho sem coleta
   de lixo e garante que o passo não aloca por projétil (§5.2).
-- **Equilíbrio (`npm run balance`):** `tests/balance/bot.ts` é um jogador-robô (três níveis de
+- **Equilíbrio (`npm run balance`):** além do que está abaixo, `stuck.bal.ts` (inimigos presos e tempo de
+  cada onda com o robô) e `waves.bal.ts` (vida do robô ao fim de cada onda). `tests/balance/bot.ts` é um jogador-robô (três níveis de
   reação, com e sem dash de esquiva). **Ele não é um jogador de verdade** e joga pior que um
   humano em quase tudo (não lê o desenho, não improvisa): serve para comparar cenários entre si
   (a mesma habilidade, com e sem uma mudança) e para achar o impossível e o trivial, não para

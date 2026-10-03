@@ -153,11 +153,17 @@ export const drawUrchin: Drawer = (g, e, flashing) => {
   }
 };
 
-/** Medusinha: sino que incha e núcleo que brilha no aviso; tentáculos ondulando. */
+/**
+ * Medusinha: uma miniatura da Água-viva. Sino com borda de lóbulos, canais e núcleo, tentáculos
+ * finos em ondas e uma aura na cor do esporo. No aviso o sino incha e o núcleo acende.
+ */
 export const drawJellyling: Drawer = (g, e, flashing) => {
   const r = e.radius;
   const tel = e.state === "telegraph";
   const k = progress(e);
+  // a fase da ondulação é a mesma do sobe e desce dela (e.data.bob), só visual
+  const ph = e.data.bob ?? 0;
+  const W = "#ffffff";
 
   if (tel) {
     warnHalo(g, e, r + 12, "#b8f0ff");
@@ -172,27 +178,118 @@ export const drawJellyling: Drawer = (g, e, flashing) => {
     g.setLineDash([]);
   }
   const bell = tel ? 1 + 0.3 * k : 1;
-  g.strokeStyle = flashing ? "#ffffff" : "#7fc4d8";
-  g.lineWidth = 1.8;
-  for (let i = -2; i <= 2; i++) {
-    const x = i * r * 0.36;
+  const R = r * bell;
+  const rim = (x: number): number => R * 0.3 * Math.sqrt(Math.max(0, 1 - (x / R) ** 2));
+  g.lineCap = "round";
+  g.lineJoin = "round";
+
+  // aura
+  if (!flashing) {
+    const aura = g.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 2.6);
+    aura.addColorStop(0, "rgba(184,240,255,0.16)");
+    aura.addColorStop(1, "rgba(184,240,255,0)");
+    g.fillStyle = aura;
+    disc(g, 0, 0, r * 2.6);
+  }
+
+  // tentáculos: finos, ondulam e somem na ponta (o último brilha)
+  for (let i = 0; i < 5; i++) {
+    const x0 = (i / 4 - 0.5) * R * 1.45;
+    const len = r * (1.2 + 0.5 * ((i * 3) % 4) / 3);
+    let px = x0;
+    let py = rim(x0);
+    for (let s = 1; s <= 7; s++) {
+      const t = s / 7;
+      const nx = x0 * (1 - 0.12 * t) + Math.sin(ph * 1.3 - t * 4.5 + i * 1.7) * (1 + 3.2 * t);
+      const ny = rim(x0) + t * len;
+      g.strokeStyle = flashing ? W : "#7fc4d8";
+      g.globalAlpha = flashing ? 1 : 1 - 0.45 * t;
+      g.lineWidth = 2.8 * (1 - t) + 1;
+      g.beginPath();
+      g.moveTo(px, py);
+      g.lineTo(nx, ny);
+      g.stroke();
+      px = nx;
+      py = ny;
+    }
+    if (!flashing) {
+      g.globalAlpha = 0.5 + 0.4 * Math.sin(ph * 2 + i);
+      g.fillStyle = "#dff8ff";
+      disc(g, px, py, 0.9);
+    }
+  }
+  g.globalAlpha = 1;
+
+  // sino: cúpula e borda de baixo recortada em lóbulos
+  const dome = (): void => {
     g.beginPath();
-    g.moveTo(x, r * 0.3);
-    g.quadraticCurveTo(x + (i % 2 === 0 ? 4 : -4), r * 1.0, x, r * 1.5);
+    g.ellipse(0, 0, R, R * 0.85, 0, Math.PI, TAU);
+    const lobes = 5;
+    for (let j = 0; j < lobes; j++) {
+      const x1 = R - ((j + 1) * 2 * R) / lobes;
+      const mid = R - ((j + 0.5) * 2 * R) / lobes;
+      const bulge = R * (0.1 + 0.04 * Math.sin(ph * 1.6 + j)) * (Math.sqrt(Math.max(0, 1 - (mid / R) ** 2)) + 0.3);
+      g.quadraticCurveTo(mid, rim(mid) + bulge, x1, rim(x1));
+    }
+    g.closePath();
+  };
+  dome();
+  if (flashing) {
+    g.fillStyle = W;
+    g.fill();
+    return;
+  }
+  const grad = g.createRadialGradient(0, -R * 0.3, R * 0.1, 0, 0, R);
+  grad.addColorStop(0, "#effcff");
+  grad.addColorStop(0.5, "#8fd8e8");
+  grad.addColorStop(1, "#4a9fbd");
+  g.fillStyle = grad;
+  g.fill();
+  g.save();
+  dome();
+  g.clip();
+  // canais radiais
+  g.strokeStyle = "rgba(255,255,255,0.4)";
+  g.lineWidth = 0.8;
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI + ((i + 0.5) / 5) * Math.PI;
+    g.beginPath();
+    g.moveTo(0, -R * 0.15);
+    g.lineTo(Math.cos(a) * R * 0.95, Math.sin(a) * R * 0.8);
     g.stroke();
   }
-  g.fillStyle = flashing ? "#ffffff" : "#8fd8e8";
-  g.globalAlpha = 0.9;
+  // reflexo
+  g.fillStyle = "rgba(255,255,255,0.55)";
   g.beginPath();
-  g.ellipse(0, 0, r * bell, r * 0.85 * bell, 0, Math.PI, 0);
-  g.lineTo(r * bell, r * 0.3);
-  g.quadraticCurveTo(0, r * 0.55, -r * bell, r * 0.3);
-  g.closePath();
+  g.ellipse(-R * 0.4, -R * 0.55, R * 0.2, R * 0.08, -0.6, 0, TAU);
   g.fill();
+  g.restore();
+  // contorno escuro (para ler sobre o fundo) e fio de luz na borda; pontos de luz nos lóbulos
+  dome();
+  g.strokeStyle = "rgba(12,70,96,0.75)";
+  g.lineWidth = 1.6;
+  g.stroke();
+  g.strokeStyle = "rgba(255,255,255,0.7)";
+  g.lineWidth = 0.8;
+  g.stroke();
+  for (let j = 0; j < 5; j++) {
+    const mid = R - ((j + 0.5) * 2 * R) / 5;
+    g.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(ph * 2 + j * 1.7));
+    g.fillStyle = "#ffffff";
+    disc(g, mid, rim(mid) + R * 0.05, 0.9);
+  }
   g.globalAlpha = 1;
-  g.fillStyle = flashing ? "#ffffff" : tel ? "#ffffff" : "#dff8ff";
-  g.globalAlpha = tel ? 0.6 + 0.4 * k : 0.85;
-  disc(g, 0, -r * 0.15, r * (tel ? 0.4 : 0.28));
+  // núcleo: incha e acende no aviso
+  const coreR = r * (tel ? 0.4 : 0.26);
+  const cg = g.createRadialGradient(0, -r * 0.15, 0, 0, -r * 0.15, coreR * 2.2);
+  cg.addColorStop(0, "rgba(255,255,255,0.95)");
+  cg.addColorStop(0.35, tel ? "rgba(255,255,255,0.8)" : "rgba(184,240,255,0.85)");
+  cg.addColorStop(1, "rgba(184,240,255,0)");
+  g.globalAlpha = tel ? 0.6 + 0.4 * k : 1;
+  g.fillStyle = cg;
+  disc(g, 0, -r * 0.15, coreR * 2.2);
+  g.fillStyle = tel ? W : "#dff8ff";
+  disc(g, 0, -r * 0.15, coreR * 0.75);
   g.globalAlpha = 1;
 };
 

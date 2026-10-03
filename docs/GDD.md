@@ -98,12 +98,18 @@ Substituem o spawner por tempo do protótipo (CONTEXTO §5.3).
 
 ### 3.1 Regras
 
-- Cada onda tem uma **lista fixa de inimigos**, definida por mapa (§3.2).
-- Os inimigos entram em **levas escalonadas**: um nascimento a cada 600 ms, até o teto de
-  **6 vivos ao mesmo tempo**. Quando um morre, o próximo da fila entra.
+- Cada onda tem uma **lista fixa de inimigos**, definida por mapa (§3.2), e um **nome** (§3.3).
+- A onda é uma **sequência de levas** (§3.3), cada uma entrando de um jeito. A primeira vem com a
+  onda; as outras vêm quando **sobram poucos inimigos** (quem joga bem não espera) ou quando
+  **passa um tempo** (quem demora é pressionado), o que vier primeiro. Uma leva nova é anunciada
+  no HUD ("PINÇA!").
+- Nas levas **espalhadas** os inimigos nascem um a cada 600 ms, até o teto de **6 vivos ao mesmo
+  tempo**. Nas levas de **flanco, pinça e cerco** entram quase juntos (150 ms entre um e outro) e o
+  teto sobe para 10.
 - **Onde nascem:** em **zonas de nascimento** desenhadas no mapa, escolhendo uma que esteja a
   pelo menos 220 px do jogador. Só se nenhuma zona servir, cai para um ponto livre aleatório
-  com a mesma distância.
+  com a mesma distância. Os padrões de flanco, pinça e cerco escolhem o lugar (§3.3) e, se não der
+  (rocha, jogador perto), caem nesse jeito de sempre.
 - **Aviso de nascimento:** um redemoinho de bolhas por 500 ms no ponto antes de o inimigo
   aparecer. Nascer também é telegrafado.
 - Inimigos **estáticos** (Ouriço) têm posições fixas no mapa, que não passam por zona.
@@ -116,6 +122,42 @@ Substituem o spawner por tempo do protótipo (CONTEXTO §5.3).
 | Leito das Fendas | 4 peixes | 3 peixes, 2 circuladores, 2 ermitões | 3 peixes, 2 circuladores, 3 ermitões, 2 ouriços |
 | Jardim de Corais | 3 peixes, 2 medusinhas | 2 peixes, 2 circuladores, 2 medusinhas, 2 anêmonas | 3 peixes, 3 circuladores, 3 medusinhas, 3 anêmonas |
 | Fosso do Abismo | 4 peixes, 2 vigias | 3 circuladores, 2 vigias, 4 lampreias | 3 peixes, 3 circuladores, 3 vigias, 8 lampreias |
+
+Estes são os **totais** de cada onda. O que as levas mudam é a ordem e o lugar em que chegam.
+
+### 3.3 Levas
+
+Cada onda tem um nome (mostrado no HUD e no número da onda) e uma sequência de levas. O número entre
+parênteses é o gatilho da leva seguinte: entra quando sobram **até esse tanto** da onda em campo ou
+quando passa o tempo, o que vier primeiro.
+
+| Padrão | Como entra |
+|---|---|
+| **Espalhada** | cada um numa zona qualquer, um a cada 600 ms (o jeito de antes) |
+| **Flanco** | todos da **mesma zona**, quase juntos: um bando que chega por um lado só |
+| **Pinça** | de **duas zonas opostas** ao mesmo tempo (a segunda é a mais distante da primeira) |
+| **Cerco** | em **anel** em volta do jogador, a 270–340 px: dá tempo de olhar em volta, não de ficar parado |
+
+Os estáticos (Ouriço, Anêmona) não seguem o padrão: sempre nascem nas posições fixas do mapa.
+
+| Mapa | Onda | Nome | Levas |
+|---|---|---|---|
+| Leito das Fendas | 1 | CARDUME | 2 peixes · 2 peixes em flanco (≤ 1, 6,5 s) |
+| | 2 | PINÇA | 2 peixes e 2 circuladores · 1 peixe e 2 ermitões em pinça (≤ 2, 9 s) |
+| | 3 | CERCO | 3 peixes e 2 ouriços · 2 circuladores em flanco (≤ 2, 8 s) · 3 ermitões em cerco (≤ 2, 9 s) |
+| Jardim de Corais | 1 | À DERIVA | 3 peixes · 2 medusinhas em flanco (≤ 1, 6,5 s) |
+| | 2 | PINÇA | 2 anêmonas e 2 medusinhas · 2 peixes e 2 circuladores em pinça (≤ 2, 9 s) |
+| | 3 | MARÉ | 3 anêmonas e 3 medusinhas · 3 peixes em flanco (≤ 3, 8 s) · 3 circuladores em cerco (≤ 2, 9 s) |
+| Fosso do Abismo | 1 | OLHARES | 2 peixes e 2 vigias · 2 peixes em flanco (≤ 1, 6,5 s) |
+| | 2 | ENXAME | 3 circuladores e 2 vigias · 4 lampreias em flanco (≤ 2, 8 s) |
+| | 3 | ENXURRADA | 3 peixes e 3 vigias · 3 circuladores e 4 lampreias em pinça (≤ 3, 9 s) · 4 lampreias em cerco (≤ 3, 9 s) |
+
+A última leva de cada onda 3 é o fecho (o cerco): o jogador chega ao chefe depois de ter sido cercado
+uma vez. O gatilho "sobram poucos" também elimina o tempo morto de quem limpa a onda rápido.
+
+**Medido com o jogador-robô** (`npm run balance`, regular, 6 sementes): as levas não deixam as ondas
+mais difíceis que antes (no Leito ele morre menos; no Coral e no Fosso o dano é parecido). Quem
+joga melhor que o robô vai sentir mais a pressão do que o número diz.
 
 ---
 
@@ -292,6 +334,7 @@ Uma cria da Água-viva. Ensina a **pressão de longe** e o uso do coral como cob
 | Atributo | Valor |
 |---|---|
 | Vida / raio | 28 / 10 px |
+| Visual | miniatura da Água-viva: sino com borda de lóbulos e canais, núcleo que acende no aviso, tentáculos finos em ondas e uma aura na cor do esporo (`docs/screenshots/jellyling/`) |
 | Comportamento | flutua a 260 px do jogador, subindo e descendo |
 | Ataque | aviso de 600 ms (o sino incha e o núcleo brilha) → 1 esporo mirado |
 | Esporo | 150 px/s, dano 8, vida 3500 ms, cor `#b8f0ff` |
@@ -342,6 +385,15 @@ para abrir caminho.
 > **Nota de balanceamento:** com 18 de vida, a lampreia sobrevive a uma estocada sem carga
 > (16) com 2. Isso é proposital: obriga duas estocadas rápidas ou uma carregada. Se ficar
 > tedioso, baixar para 16.
+
+**Navegação.** Os inimigos **contornam a rocha**. Quem tem o caminho reto livre anda como sempre; com
+um pilar de coral ou de rocha no meio, segue o caminho mais curto até o jogador (um mapa de distâncias
+sobre a grade, refeito quando o jogador troca de bloco ou a rocha muda: a parede do Coral que quebra,
+os pilares do Fosso). Peixe, Circulador, Lampreia e Ermitão **só avisam o ataque com o caminho até o
+jogador livre** (não investem contra a parede); a Medusinha e a Vigia, sem ver o jogador, contornam
+até achar um ângulo. Isso corrigiu um bug do Coral e do Fosso: peixes, medusinhas e vigias ficavam
+encostados num pilar para sempre e a onda nunca terminava (medido: 3 a 5 presos por onda no Coral e 1
+a 4 no Fosso; agora 0).
 
 #### Como o M5 preencheu o que este documento deixava aberto
 
@@ -496,12 +548,18 @@ Os três chefes do protótipo, com os mesmos ataques e números (CONTEXTO §6). 
 **Fase 2:** pausa entre ataques de 900 → 520 ms; investida e pinça em dobro no *pool*; 55% de
 chance de emendar uma investida extra com aviso de 294 ms.
 
+**Visual (redesenhado depois do M8):** carapaça com relevo, espinhos no casco, pernas e braços
+articulados, pinças com dentes e olhos em hastes. A pinça brilha e abre durante o aviso (o círculo
+no chão continua sendo o aviso de verdade). Na **fase 2** a carapaça racha e brilha por dentro, os
+espinhos crescem e os olhos ganham brasa: ele "enlouquece", como o Olho ganha olhos. Só apresentação:
+nenhum número de jogo mudou. Antes e depois em `docs/screenshots/crab/`.
+
 **No mapa novo:** o Leito das Fendas é maior que a caverna do protótipo. A investida de
 520 px continua curta em relação ao mapa, e as formações rochosas são o que a interrompe.
 
 ### 8.2 Água-viva Colossal — controle de espaço
 
-460 de vida (eram 380). Flutua a 215 px do jogador e 55 px acima dele. **Três fases** (eram duas):
+640 de vida (eram 460, e 380 no protótipo). Flutua a 215 px do jogador e 55 px acima dele. **Três fases** (eram duas):
 100–65%, 65–30% e abaixo de 30%. A barra de vida mostra as marcas, e a música sobe na terceira.
 Os valores abaixo são [fase 1, fase 2, fase 3]; a cor dela muda a cada fase (verde-água, rosa,
 dourado incandescente).
@@ -555,6 +613,12 @@ dura: acima de ~1,16 rad/s o raio fica impossível de superar nadando (o máximo
 ≈ 300 (era ≈ 200–250) e fase 3 ≈ 340–390 (nova). O Olho fica em ≈ 120–175 / 270–340 / 360–440 nas
 suas três fases: a Água-viva agora tem o mesmo formato de subida. É um robô, e o número serve para
 comparar com o antes, não para dizer se está justo.
+
+**Visual (redesenhado depois do M8):** sino translúcido com borda de lóbulos, canais e gônadas por
+dentro, tentáculos finos que afinam em ondas, braços orais franjados e um núcleo que incha em todo
+aviso. Cada fase ganha tentáculos, uma aura mais forte e, da 2ª em diante, uma coroa de pontos de luz
+(a cor continua mudando: verde-água, rosa, dourado). Só apresentação: os avisos dos ataques e todos
+os números ficaram como estavam. Antes e depois em `docs/screenshots/jelly/`.
 
 **No mapa novo:** as colunas de coral são a sombra do raio, do farol e da onda de choque (§7.2).
 

@@ -4,8 +4,10 @@ import type { Boss } from "../../sim/bosses/types";
 import { rayLength } from "../../sim/geometry";
 import type { Grid } from "../../world/grid";
 
-// Água-viva, como no protótipo (CONTEXTO §2.3 e §2.7): sino translúcido que respira,
-// tentáculos ondulando e um núcleo que incha durante qualquer aviso. Os avisos: anéis
+// Água-viva (CONTEXTO §2.3 e §2.7): sino translúcido que respira, com borda de lóbulos, canais e
+// gônadas por dentro, tentáculos finos em ondas, braços orais franjados e um núcleo que incha
+// durante qualquer aviso. A cada fase ganha tentáculos e, nas duas últimas, uma coroa de
+// pontinhos de luz (como o Olho ganha olhos). O corpo é só apresentação. Os avisos: anéis
 // convergindo (anel de esporos), linha de mira + seta do sentido do giro (raio), arcos
 // sugando para dentro (sucção). Os ataques novos: a fresta e o anel que se expande (onda de choque),
 // os pontos das crias (chamado) e as cunhas varridas pelos três raios (farol). A cor muda a cada
@@ -66,74 +68,273 @@ export function drawJelly(g: CanvasRenderingContext2D, b: Boss, x: number, y: nu
     g.globalAlpha = 1;
   }
 
-  g.save();
-  g.translate(x, y);
-  const breathe = 1 + Math.sin(pulse) * 0.07;
+  drawBody(g, b, x, y, pal, flash, telegraph, pulse);
+}
 
-  // tentáculos, atrás do sino
-  g.strokeStyle = flash ? "#ffffff" : pal.tent;
-  g.lineWidth = 3;
-  for (let i = 0; i < 9; i++) {
-    const off = (i / 8 - 0.5) * R * 1.5;
-    g.beginPath();
-    g.moveTo(off * 0.7, R * 0.35);
-    for (let s = 1; s <= 5; s++) {
-      const t = s / 5;
-      g.lineTo(off * 0.7 + Math.sin(pulse * 1.6 + i + t * 3) * 12 * t, R * 0.35 + t * R * 2.1);
-    }
-    g.stroke();
-  }
-  // braços orais, mais grossos
-  g.lineWidth = 6;
-  g.strokeStyle = flash ? "#ffffff" : pal.arm;
-  for (let i = 0; i < 4; i++) {
-    const off = (i / 3 - 0.5) * R * 0.8;
-    g.beginPath();
-    g.moveTo(off, R * 0.3);
-    g.quadraticCurveTo(off + Math.sin(pulse * 1.2 + i) * 18, R * 1.1, off + Math.sin(pulse * 1.2 + i) * 26, R * 1.7);
-    g.stroke();
-  }
+type JellyPalette = (typeof PALETTE)[number];
 
-  // sino: escala que preserva a área, para a respiração parecer orgânica
-  g.save();
-  g.scale(breathe, 1 / breathe);
-  const grad = g.createRadialGradient(0, -R * 0.3, R * 0.15, 0, 0, R);
-  if (flash) {
-    grad.addColorStop(0, "#ffffff");
-    grad.addColorStop(1, "#ffffff");
-  } else {
-    grad.addColorStop(0, pal.bell[0]);
-    grad.addColorStop(0.5, pal.bell[1]);
-    grad.addColorStop(1, pal.bell[2]);
-  }
-  g.fillStyle = grad;
+const WHITE = "#ffffff";
+
+/** "#rrggbb" → "rgba(r,g,b,a)", para degradês que somem sem escurecer. */
+function withAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+/** Altura da borda de baixo do sino (a meia-elipse achatada) na posição x. */
+const rimY = (R: number, x: number): number => R * 0.35 * Math.sqrt(Math.max(0, 1 - (x / R) ** 2));
+
+/** Sobra de um lóbulo da borda, pulsando em contratempo com a respiração. */
+const lobeBulge = (R: number, mid: number, pulse: number, j: number): number =>
+  R * (0.1 + 0.035 * Math.sin(pulse * 1.6 + j * 0.8)) * (Math.sqrt(Math.max(0, 1 - (mid / R) ** 2)) + 0.3);
+
+/** Sino: cúpula e borda de baixo recortada em lóbulos. */
+function bellPath(g: CanvasRenderingContext2D, R: number, pulse: number): void {
+  const lobes = 8;
   g.beginPath();
   g.ellipse(0, 0, R, R * 0.85, 0, Math.PI, TAU);
-  g.ellipse(0, 0, R, R * 0.35, 0, 0, Math.PI);
-  g.fill();
-  g.strokeStyle = flash ? "#ffffff" : "rgba(255,255,255,0.45)";
-  g.lineWidth = 1.5;
-  for (let i = 1; i < 5; i++) {
-    const nx = -R + (i / 5) * R * 2;
+  for (let j = 0; j < lobes; j++) {
+    const x1 = R - ((j + 1) * 2 * R) / lobes;
+    const mid = R - ((j + 0.5) * 2 * R) / lobes;
+    g.quadraticCurveTo(mid, rimY(R, mid) + lobeBulge(R, mid, pulse, j), x1, rimY(R, x1));
+  }
+  g.closePath();
+}
+
+/** Corpo da Água-viva: aura, tentáculos, braços orais, sino e núcleo, de trás para a frente. */
+function drawBody(
+  g: CanvasRenderingContext2D, b: Boss, x: number, y: number, pal: JellyPalette, flash: boolean, telegraph: boolean,
+  pulse: number,
+): void {
+  const R = b.radius;
+  const phase = Math.min(b.phase, 2);
+  const breathe = 1 + Math.sin(pulse) * 0.07;
+  g.save();
+  g.translate(x, y);
+  g.lineCap = "round";
+  g.lineJoin = "round";
+
+  // aura: mais forte a cada fase
+  if (!flash) {
+    const aura = g.createRadialGradient(0, 0, R * 0.3, 0, 0, R * (1.9 + 0.2 * phase));
+    aura.addColorStop(0, withAlpha(pal.glow, 0.2 + 0.07 * phase));
+    aura.addColorStop(1, withAlpha(pal.glow, 0));
+    g.fillStyle = aura;
     g.beginPath();
-    g.moveTo(nx, -R * 0.65);
-    g.lineTo(nx * 0.9, R * 0.25);
+    g.arc(0, 0, R * (1.9 + 0.2 * phase), 0, TAU);
+    g.fill();
+  }
+
+  // tentáculos finos, atrás do sino: afinam e somem na ponta, com uma onda que desce
+  const nTent = 9 + phase * 2;
+  const SEG = 14;
+  for (let i = 0; i < nTent; i++) {
+    const u = i / (nTent - 1);
+    const x0 = (u - 0.5) * R * 1.7;
+    const y0 = rimY(R, x0) - 2;
+    const len = R * (1.55 + 0.55 * (((i * 7) % 5) / 4));
+    let px = x0;
+    let py = y0;
+    for (let sg = 1; sg <= SEG; sg++) {
+      const t = sg / SEG;
+      const nx = x0 * (1 - 0.18 * t) + Math.sin(pulse * 1.6 - t * 5 + i * 1.3) * (2 + 11 * t);
+      const ny = y0 + t * len;
+      g.strokeStyle = flash ? WHITE : pal.tent;
+      g.globalAlpha = flash ? 1 : 0.9 * (1 - 0.65 * t);
+      g.lineWidth = 3.2 * (1 - t) + 0.8;
+      g.beginPath();
+      g.moveTo(px, py);
+      g.lineTo(nx, ny);
+      g.stroke();
+      px = nx;
+      py = ny;
+    }
+    if (!flash) {
+      g.globalAlpha = 0.5 + 0.4 * Math.sin(pulse * 2 + i);
+      g.fillStyle = pal.glow;
+      g.beginPath();
+      g.arc(px, py, 1.7, 0, TAU);
+      g.fill();
+    }
+  }
+  g.globalAlpha = 1;
+
+  // braços orais: fitas franjadas que se desfazem na ponta
+  for (let i = 0; i < 4; i++) {
+    const off = (i / 3 - 0.5) * R * 0.8;
+    const SEGS = 16;
+    const left: [number, number][] = [];
+    const right: [number, number][] = [];
+    for (let sg = 0; sg <= SEGS; sg++) {
+      const t = sg / SEGS;
+      const cx = off + Math.sin(pulse * 1.2 + i + t * 3) * (6 + 20 * t);
+      const cy = R * 0.3 + t * R * 1.65;
+      const w = 5.5 * (1 - 0.55 * t);
+      left.push([cx - w - 2.2 * Math.sin(t * 22 + pulse * 2 + i), cy]);
+      right.push([cx + w + 2.2 * Math.sin(t * 22 + pulse * 2 + i + 1.7), cy]);
+    }
+    g.beginPath();
+    g.moveTo(left[0]![0], left[0]![1]);
+    for (const [px, py] of left) g.lineTo(px, py);
+    for (let sg = SEGS; sg >= 0; sg--) g.lineTo(right[sg]![0], right[sg]![1]);
+    g.closePath();
+    if (flash) {
+      g.fillStyle = WHITE;
+    } else {
+      const grad = g.createLinearGradient(0, R * 0.3, 0, R * 1.95);
+      grad.addColorStop(0, withAlpha(pal.arm, 0.95));
+      grad.addColorStop(1, withAlpha(pal.arm, 0.08));
+      g.fillStyle = grad;
+    }
+    g.fill();
+    if (!flash) {
+      g.strokeStyle = withAlpha(pal.glow, 0.5);
+      g.lineWidth = 1.2;
+      g.beginPath();
+      for (let sg = 0; sg <= SEGS; sg++) {
+        const l = left[sg]!;
+        const r = right[sg]!;
+        const mx = (l[0] + r[0]) / 2;
+        if (sg === 0) g.moveTo(mx, l[1]);
+        else g.lineTo(mx, l[1]);
+      }
+      g.stroke();
+    }
+  }
+
+  // sino: a escala preserva a área, para a respiração parecer orgânica
+  g.save();
+  g.scale(breathe, 1 / breathe);
+  if (flash) {
+    bellPath(g, R, pulse);
+    g.fillStyle = WHITE;
+    g.fill();
+    g.restore();
+    g.restore();
+    return;
+  }
+  // brilho da borda, por fora
+  bellPath(g, R, pulse);
+  g.strokeStyle = withAlpha(pal.glow, 0.28);
+  g.lineWidth = 6;
+  g.stroke();
+  const grad = g.createRadialGradient(0, -R * 0.3, R * 0.15, 0, 0, R);
+  grad.addColorStop(0, pal.bell[0]);
+  grad.addColorStop(0.5, pal.bell[1]);
+  grad.addColorStop(1, pal.bell[2]);
+  g.fillStyle = grad;
+  g.fill();
+
+  g.save();
+  bellPath(g, R, pulse);
+  g.clip();
+  // sombra de baixo: o sino é mais espesso no meio que na borda
+  const shade = g.createLinearGradient(0, -R * 0.1, 0, R * 0.55);
+  shade.addColorStop(0, "rgba(0,30,50,0)");
+  shade.addColorStop(1, "rgba(0,30,50,0.32)");
+  g.fillStyle = shade;
+  g.fillRect(-R, -R, R * 2, R * 2);
+  // canais radiais e o canal da borda
+  const coreY = -R * 0.15;
+  g.strokeStyle = "rgba(255,255,255,0.32)";
+  g.lineWidth = 1.3;
+  for (let i = 0; i < 8; i++) {
+    const a = Math.PI + ((i + 0.5) / 8) * Math.PI;
+    const ex = Math.cos(a) * R * 0.97;
+    const ey = Math.sin(a) * R * 0.8;
+    g.beginPath();
+    g.moveTo(0, coreY);
+    g.quadraticCurveTo(ex * 0.55, ey * 0.5 + coreY * 0.2, ex, ey);
     g.stroke();
   }
+  g.globalAlpha = 0.28;
+  g.beginPath();
+  g.ellipse(0, 0, R * 0.88, R * 0.72, 0, Math.PI, TAU);
+  g.stroke();
+  g.globalAlpha = 1;
+  // gônadas: quatro pétalas em volta do núcleo
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2 + Math.PI / 4;
+    g.save();
+    g.translate(Math.cos(a) * R * 0.4, coreY + Math.sin(a) * R * 0.26);
+    g.rotate(a);
+    g.beginPath();
+    g.ellipse(0, 0, R * 0.17, R * 0.09, 0, 0, TAU);
+    g.fillStyle = withAlpha(pal.glow, 0.42);
+    g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.4)";
+    g.lineWidth = 1;
+    g.stroke();
+    g.restore();
+  }
+  // reflexo
+  g.save();
+  g.translate(-R * 0.4, -R * 0.55);
+  g.rotate(-0.6);
+  g.beginPath();
+  g.ellipse(0, 0, R * 0.22, R * 0.08, 0, 0, TAU);
+  g.fillStyle = "rgba(255,255,255,0.5)";
+  g.fill();
   g.restore();
+  g.fillStyle = "rgba(255,255,255,0.55)";
+  g.beginPath();
+  g.arc(-R * 0.12, -R * 0.7, R * 0.045, 0, TAU);
+  g.fill();
+  g.restore();
+
+  // fio de luz na borda do sino
+  bellPath(g, R, pulse);
+  g.strokeStyle = "rgba(255,255,255,0.5)";
+  g.lineWidth = 1.5;
+  g.stroke();
+
+  // fotóforos: pontos de luz nas pontas dos lóbulos, piscando fora de compasso
+  for (let j = 0; j < 8; j++) {
+    const mid = R - ((j + 0.5) * 2 * R) / 8;
+    const py = rimY(R, mid) + lobeBulge(R, mid, pulse, j) * 0.5;
+    g.globalAlpha = 0.35 + 0.65 * Math.abs(Math.sin(pulse * 2 + j * 1.7));
+    g.fillStyle = pal.glow;
+    g.beginPath();
+    g.arc(mid, py, 3.4, 0, TAU);
+    g.fill();
+    g.fillStyle = WHITE;
+    g.beginPath();
+    g.arc(mid, py, 1.5, 0, TAU);
+    g.fill();
+  }
+  g.globalAlpha = 1;
 
   // núcleo: incha durante qualquer aviso ("algo vem aí")
   const coreR = R * 0.26 * (telegraph ? 1.1 + Math.abs(Math.sin(pulse * 4)) * 0.5 : 1);
-  g.globalAlpha = 0.5;
-  g.fillStyle = glow;
+  const cg = g.createRadialGradient(0, coreY, 0, 0, coreY, coreR * 2.4);
+  cg.addColorStop(0, "rgba(255,255,255,0.95)");
+  cg.addColorStop(0.25, withAlpha(pal.glow, 0.8));
+  cg.addColorStop(1, withAlpha(pal.glow, 0));
+  g.fillStyle = cg;
   g.beginPath();
-  g.arc(0, -R * 0.15, coreR * 2, 0, TAU);
+  g.arc(0, coreY, coreR * 2.4, 0, TAU);
   g.fill();
+  g.fillStyle = pal.glow;
+  g.beginPath();
+  g.arc(0, coreY, coreR, 0, TAU);
+  g.fill();
+  g.fillStyle = "rgba(255,255,255,0.85)";
+  g.beginPath();
+  g.arc(0, coreY, coreR * 0.5, 0, TAU);
+  g.fill();
+  g.restore();
+
+  // coroa de pontinhos de luz: aparece na 2ª e cresce na 3ª fase
+  for (let i = 0; i < phase * 3; i++) {
+    const a = pulse * 0.4 + (i / (phase * 3)) * TAU;
+    const rr = R * (1.3 + 0.1 * Math.sin(pulse * 2 + i));
+    g.globalAlpha = 0.35 + 0.5 * Math.abs(Math.sin(pulse * 1.5 + i));
+    g.fillStyle = pal.glow;
+    g.beginPath();
+    g.arc(Math.cos(a) * rr, Math.sin(a) * rr * 0.8 - R * 0.1, 2.4, 0, TAU);
+    g.fill();
+  }
   g.globalAlpha = 1;
-  g.fillStyle = flash ? "#ffffff" : glow;
-  g.beginPath();
-  g.arc(0, -R * 0.15, coreR, 0, TAU);
-  g.fill();
   g.restore();
 }
 

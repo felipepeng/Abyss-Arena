@@ -1,5 +1,6 @@
 import { WATCHER } from "../../config/enemies/watcher";
 import { angLerp, len } from "../../core/math";
+import { pathTarget } from "../nav";
 import { fireProjectile } from "../projectiles";
 import { canSee } from "./perception";
 import type { EnemyDef } from "./types";
@@ -38,15 +39,25 @@ export const WATCHER_DEF: EnemyDef = {
         const dy = w.player.y - e.y;
         const dist = len(dx, dy) || 1;
         e.ang = angLerp(e.ang, Math.atan2(dy, dx), WATCHER.turnLerp);
-        // aproxima se longe; recua com mais força se perto; nada dentro da faixa
-        const raw = (dist - WATCHER.keepDist) / WATCHER.keepBand;
-        const radial = Math.max(-1, Math.min(1, raw)) * (raw < 0 ? WATCHER.retreatBoost : 1);
-        e.vx += (dx / dist) * radial * WATCHER.accel * dt;
-        e.vy += (dy / dist) * radial * WATCHER.accel * dt;
-        // dá a volta no jogador, o que também o tira de trás de um pilar
-        const s = (e.data.strafeDir ?? 1) * WATCHER.strafeAccel * WATCHER.accel * dt;
-        e.vx += (-dy / dist) * s;
-        e.vy += (dx / dist) * s;
+        pathTarget(w, e);
+        if (w.nav.detour) {
+          // com a rocha no meio, contorna até enxergar o jogador (sem manter distância nem girar)
+          const ax = w.nav.wx - e.x;
+          const ay = w.nav.wy - e.y;
+          const ad = len(ax, ay) || 1;
+          e.vx += (ax / ad) * WATCHER.accel * dt;
+          e.vy += (ay / ad) * WATCHER.accel * dt;
+        } else {
+          // aproxima se longe; recua com mais força se perto; nada dentro da faixa
+          const raw = (dist - WATCHER.keepDist) / WATCHER.keepBand;
+          const radial = Math.max(-1, Math.min(1, raw)) * (raw < 0 ? WATCHER.retreatBoost : 1);
+          e.vx += (dx / dist) * radial * WATCHER.accel * dt;
+          e.vy += (dy / dist) * radial * WATCHER.accel * dt;
+          // dá a volta no jogador, o que também o tira de trás de um pilar
+          const s = (e.data.strafeDir ?? 1) * WATCHER.strafeAccel * WATCHER.accel * dt;
+          e.vx += (-dy / dist) * s;
+          e.vy += (dx / dist) * s;
+        }
         if (e.t <= 0 && canSee(e, w, WATCHER.sightR)) return "telegraph";
       },
     },
