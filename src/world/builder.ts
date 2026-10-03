@@ -26,10 +26,15 @@ export interface BuiltMap {
   fixedEnemies: { kind: EnemyKind; x: number; y: number }[];
   /** Índices de bloco de cada pilar dissolvível. */
   pillars: number[][];
+  /** Índices dos blocos da parede quebrável (`Cell.Barrier`). */
+  barrier: number[];
+  /** A área onde as ondas nascem, em px (o mapa inteiro se o mapa não define uma). */
+  playArea: PxRect;
 }
 
 const CHAR_CELL: Record<string, Cell> = {
   "#": Cell.Rock,
+  B: Cell.Barrier,
   P: Cell.Protected,
   C: Cell.Coral,
   ".": Cell.Water,
@@ -43,6 +48,7 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
   const grid = new Grid(cols, rows, WORLD.tile);
   /** Células onde o procedural pode escrever. */
   const free = new Uint8Array(cols * rows);
+  const barrier: number[] = [];
 
   def.layout.forEach((line, cy) => {
     if (line.length !== cols) throw new Error(`${def.id}: linha ${cy} tem ${line.length} colunas, esperado ${cols}`);
@@ -52,6 +58,7 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
       if (cell === undefined) throw new Error(`${def.id}: caractere desconhecido "${ch}" em (${cx}, ${cy})`);
       grid.set(cx, cy, cell);
       if (ch === "~") free[cy * cols + cx] = 1;
+      if (ch === "B") barrier.push(cy * cols + cx);
     }
   });
 
@@ -174,5 +181,7 @@ export function buildMap(def: MapDef, seed: number): BuiltMap {
     spawnZones: def.markers.spawnZones.map(toPx),
     fixedEnemies: def.markers.fixedEnemies.map((f) => ({ kind: f.kind, ...center(f.at) })),
     pillars,
+    barrier,
+    playArea: def.playArea ? toPx(def.playArea) : { x: 0, y: 0, w: grid.width, h: grid.height },
   };
 }

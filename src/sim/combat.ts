@@ -63,6 +63,15 @@ export function hitBoss(w: World, b: Boss, damage: number, dirX: number, dirY: n
     b.dead = true;
     w.kills++;
     w.events.push({ t: "bossDied", x: b.x, y: b.y, radius: b.radius, boss: b.kind });
+    // os capangas do chefe (os peixes do Caranguejo, as medusinhas da Água-viva) somem com ele:
+    // sem isso, continuariam atirando e mordendo durante a vitória
+    for (let i = 0; i < w.enemies.count; i++) {
+      const e = w.enemies.get(i);
+      if (e.noDrop && !e.fromWave && !e.dead) {
+        e.dead = true;
+        w.events.push({ t: "enemyDied", x: e.x, y: e.y, radius: e.radius, kind: e.kind });
+      }
+    }
   }
 }
 

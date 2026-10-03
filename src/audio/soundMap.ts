@@ -35,6 +35,8 @@ export function soundFor(e: SimEvent): SfxName | null {
       return "bossPhase";
     case "bossImpact":
       return "bossImpact";
+    case "arenaBreak":
+      return "arenaBreak";
     case "bossDied":
       return "bossDie";
     case "telegraph": {

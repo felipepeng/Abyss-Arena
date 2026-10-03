@@ -88,6 +88,10 @@ export const FX = {
     /** Cada onda do anel; o espalhamento é proporcional ao raio do sino. */
     ring: { bubbles: { count: 12, color: "#8affe0", spread: 0, speed: 180 }, spreadScale: 0.5, shake: { ms: 110, amp: 3 } },
     beam: { shake: { ms: 160, amp: 4 } },
+    /** A onda de choque sai do sino. */
+    shock: { bubbles: { count: 22, color: "#9ff4ff", spread: 30, speed: 260 }, shake: { ms: 200, amp: 5 } },
+    /** As crias nascem. */
+    call: { bubbles: { count: 16, color: "#b8f0ff", spread: 24, speed: 200 } },
     pullStream: { bubbles: { count: 1, color: "#a8e6ff", spread: 8, speed: 40 } },
   },
   /** Olho (CONTEXTO §6.3). */
@@ -97,6 +101,8 @@ export const FX = {
     siege: { bubbles: { count: 14, color: "#ff9ad8", spread: 30, speed: 200 }, shake: { ms: 180, amp: 4 } },
     seek: { bubbles: { count: 16, color: "#c8a0ff", spread: 24, speed: 220 } },
   },
+  /** A parede quebrável cede: um tremor longo, do tamanho do estilhaçar (~1,4 s). */
+  arenaBreak: { bubbles: { count: 40, color: "#d6a8ff", spread: 60, speed: 320 }, shake: { ms: 1500, amp: 5 } },
   /** Bloco de pilar dissolvendo. */
   pillarCrumble: { bubbles: { count: 1, color: "#7f9e94", spread: 7, speed: 130 } },
 } as const;

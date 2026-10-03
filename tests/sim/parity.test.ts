@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FISH } from "../../src/config/enemies/fish";
 import { activateBoss, createBoss } from "../../src/sim/bosses/runner";
 import type { Boss } from "../../src/sim/bosses/types";
@@ -6,6 +6,7 @@ import { spawnEnemy } from "../../src/sim/enemies/runner";
 import type { EnemyKind } from "../../src/sim/enemies/types";
 import { stepWorld, type World } from "../../src/sim/world";
 import traces from "../fixtures/prototype-traces.json";
+import { usePrototypeJelly } from "./protoJelly";
 import { aimRight, openGrid, openWorld, pinRng, STEP } from "./helpers";
 
 // Paridade de sensação com o protótipo (critério do M1). `prototype-traces.json` foi gravado
@@ -423,6 +424,13 @@ const EYE_START = { x: 930, y: 900 };
 const eyeWorld = (hp: number, seed: number) => bossWorld("eye", openGrid(93, 55), { ...EYE_START }, 930, 550, hp, seed);
 
 describe("paridade com o protótipo: Água-viva", () => {
+  // com os números originais do protótipo (o jogo a deixou mais difícil depois; ver protoJelly.ts)
+  let restore: () => void = () => {};
+  beforeAll(() => {
+    restore = usePrototypeJelly();
+  });
+  afterAll(() => restore());
+
   it("contra um jogador parado: anel de esporos", () => {
     expectSameBossTrace(replay(jellyWorld(-200, 0, 0, 3), len("jellyVsIdle"), () => ({})), T.jellyVsIdle ?? []);
   });

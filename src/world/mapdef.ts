@@ -8,6 +8,7 @@ import type { Palette } from "../config/palette";
 //   '#' rocha comum (a erosão pode destruir)
 //   'P' rocha protegida (borda e estrutura: a erosão nunca destrói)
 //   'C' coral (sólido, visual próprio)
+//   'B' parede quebrável (sólida; um chefe a quebra no meio da luta, ver `sim/barrier.ts`)
 //   '.' água fixa
 //   '~' água onde o procedural pode pôr detalhes
 
@@ -65,6 +66,11 @@ export interface ProceduralParams {
 
 export interface MapDef {
   id: MapId;
+  /**
+   * A parte do mapa onde o jogador pode estar antes de a parede quebrar. As ondas nascem só aqui
+   * (o resto é uma câmara fechada). Sem isto, é o mapa inteiro.
+   */
+  playArea?: TileRect;
   /** Linhas do mesmo comprimento; o tamanho do mapa sai daqui. */
   layout: readonly string[];
   markers: {

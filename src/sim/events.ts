@@ -23,6 +23,8 @@ export type SimEvent =
   | { t: "bossVolley"; x: number; y: number; boss: BossKind; attack: string }
   /** Bolha na corrente da sucção (sorteada na simulação para manter a sequência do protótipo). */
   | { t: "pullStream"; x: number; y: number }
+  /** A parede quebrável começou a ceder a partir de (x, y): tremor e som (a Água-viva, fase 2). */
+  | { t: "arenaBreak"; x: number; y: number }
   /** Um bloco de pilar dissolveu (o sorteio da bolha é da simulação, como no protótipo). */
   | { t: "pillarCrumble"; x: number; y: number }
   /** O chefe entrou em cena (começo da entrada). */

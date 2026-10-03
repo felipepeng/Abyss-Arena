@@ -294,6 +294,15 @@ v1; build publicada.
   máquina e não foi testado.**
 - **Polimento:** o jogo pausa sozinho quando a janela perde o foco; favicon; README e CLAUDE.md
   atualizados.
+- **Água-viva mais difícil (depois do M8):** 3 fases, 460 de vida, três ataques novos (onda de choque,
+  chamado das medusinhas e farol) e combos nas fases finais. O código dos ataques antigos é o do
+  protótipo: a paridade roda com os números originais congelados em `tests/sim/protoJelly.ts`.
+  Detalhes e medições no GDD §8.2.
+- **Quebra da arena (Água-viva, depois do M8):** o Jardim de Corais passou a 112 × 69 blocos: uma
+  arena interna fechada por uma parede `Barrier` que a Água-viva quebra ao entrar na fase 2, e uma
+  câmara externa com colunas de coral. Depois da quebra ela ronda o jogador como o Olho, em vez de
+  ficar sempre acima dele. Custo no navegador durante a quebra: 1,6 ms por quadro em média, 7,2 ms
+  no pior. Detalhes no GDD §7.2 e §8.2.
 - **O que a bancada NÃO diz:** o jogador-robô não vence nenhuma fase (joga pior que uma pessoa),
   então "a Descida é vencível por quem conhece os padrões" **não foi verificado**. Só jogar diz.
   Bugs que a bancada não achou não estão descartados.

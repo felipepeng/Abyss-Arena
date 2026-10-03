@@ -8,6 +8,11 @@ export const Cell = {
   Protected: 2,
   /** Sólido, com visual próprio (Jardim de Corais). */
   Coral: 3,
+  /**
+   * Parede que um chefe quebra no meio da luta para abrir a arena (a Água-viva, na fase 2). Sólida
+   * como a rocha, mas a erosão dos projéteis não a toca: só o chefe a quebra.
+   */
+  Barrier: 4,
 } as const;
 export type Cell = (typeof Cell)[keyof typeof Cell];
 

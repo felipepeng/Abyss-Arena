@@ -122,6 +122,8 @@ export interface BossDef {
   onPhaseEnter?(b: Boss, w: World, phase: number): void;
   /** A troca de fase gasta o passo inteiro: nada mais acontece nele (o Olho). */
   readonly phaseChangeSkipsStep?: boolean;
+  /** Teto de velocidade do chefe agora, se mudar por fase (a Água-viva acelera). Padrão: `stats.speed`. */
+  maxSpeed?(b: Boss): number;
   /** Freio (1/s) durante avisos e execuções: o chefe fica ancorado enquanto ataca. */
   readonly attackBrake?: number;
   /** O contato vale dentro de `radius · contactRadiusScale` (padrão 1). */

@@ -21,7 +21,7 @@ export function drawBoss(g: CanvasRenderingContext2D, b: Boss, alpha: number, w:
   const y = lerp(b.prevY, b.y, alpha);
   const ang = angLerp(b.prevAng, b.ang, alpha);
   if (b.kind === "crab") drawCrab(g, b, x, y, ang, w.timeMs / 1000);
-  else if (b.kind === "jelly") drawJelly(g, b, x, y, progress(b));
+  else if (b.kind === "jelly") drawJelly(g, b, x, y, progress(b), w.grid);
   else drawEye(g, b, x, y, ang, progress(b), { playerX: w.player.x, worldW: w.grid.width, worldH: w.grid.height, top: w.grid.tile * 2 });
 }
 

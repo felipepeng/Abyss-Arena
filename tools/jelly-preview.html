@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia da Água-viva</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="960" height="540"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: põe a Água-viva num momento exato de um ataque e desenha um
+// quadro com o renderizador de verdade, para ajustar a arte sem esperar o sorteio.
+//   /tools/jelly-preview.html?view=shock-t|shock-x|call|lh-t|lh-x|ring|pull|idle&phase=0|1|2
+//   /tools/jelly-preview.html?view=map-closed|map-open      o mapa inteiro, com a parede de pé / quebrada
+//   /tools/jelly-preview.html?view=wall-0|wall-1|wall-2|wall-3  o canto da parede, de perto: de pé, e cedendo (0,25 s / 0,6 s / 1,0 s)
+import { BOSS_DEFS } from "/src/sim/bosses/registry.ts";
+import { debugSkipToBoss } from "/src/sim/phase.ts";
+import { startBarrierBreak } from "/src/sim/barrier.ts";
+import { createMapWorld, stepWorld } from "/src/sim/world.ts";
+import { NO_INTENT } from "/src/sim/player.ts";
+import { Fx } from "/src/fx/fx.ts";
+import { WorldRenderer } from "/src/render/renderer.ts";
+import { CORAL } from "/src/world/maps/coral.ts";
+
+const q = new URLSearchParams(location.search);
+const view = q.get("view") ?? "shock-t";
+const phase = Number(q.get("phase") ?? 0);
+const STEP = 1000 / 60;
+
+const canvas = document.getElementById("c");
+const g = canvas.getContext("2d");
+const w = createMapWorld(CORAL, 3);
+w.godMode = true;
+debugSkipToBoss(w);
+for (let i = 0; i < 400 && w.phase?.state !== "boss"; i++) stepWorld(w, NO_INTENT, STEP);
+const boss = w.phase.boss;
+boss.phase = phase;
+boss.state = "think";
+boss.t = 1e9;
+
+// a Água-viva onde ela nasce e o jogador a 215 px, um pouco abaixo (ela flutua acima)
+const HOME = { x: boss.x, y: boss.y };
+const place = () => {
+  w.player.x = w.player.prevX = HOME.x + 215;
+  w.player.y = w.player.prevY = HOME.y + 55;
+  w.player.vx = w.player.vy = 0;
+  boss.x = boss.prevX = HOME.x;
+  boss.y = boss.prevY = HOME.y;
+  boss.vx = boss.vy = 0;
+};
+place();
+
+const def = BOSS_DEFS.jelly;
+const force = (name) => {
+  boss.state = "telegraph";
+  boss.attack = name;
+  boss.t = boss.stateMs = def.attacks[name].telegraphMs(boss);
+};
+const run = (ms) => { for (let t = 0; t < ms; t += STEP) { place(); stepWorld(w, NO_INTENT, STEP); w.player.hp = 100; } };
+
+const breakWall = (ms) => { startBarrierBreak(w, boss.x, boss.y); run(ms); };
+const VIEWS = {
+  "map-closed": () => { run(100); },
+  "map-open": () => { startBarrierBreak(w, boss.x, boss.y); run(2200); },
+  "wall-0": () => { run(100); },
+  "wall-1": () => breakWall(250),
+  "wall-2": () => breakWall(600),
+  "wall-3": () => breakWall(1000),
+  "shock-t": () => { force("shock"); run(560); },
+  "shock-x": () => { force("shock"); run(def.attacks.shock.telegraphMs(boss) + 620); },
+  call: () => { force("call"); run(def.attacks.call.telegraphMs(boss) * 0.7); },
+  "lh-t": () => { force("lighthouse"); run(600); },
+  "lh-x": () => { force("lighthouse"); run(def.attacks.lighthouse.telegraphMs(boss) + 1500 + 700); },
+  ring: () => { force("ring"); run(def.attacks.ring.telegraphMs(boss) + 500); },
+  pull: () => { force("pull"); run(def.attacks.pull.telegraphMs(boss) + 400); },
+  idle: () => { run(200); },
+};
+(VIEWS[view] ?? VIEWS.idle)();
+
+const renderer = new WorldRenderer(CORAL.palette);
+if (view.startsWith("map-")) {
+  // vista geral: o mapa inteiro cabe na tela, um retângulo por bloco (não usa a câmera do jogo)
+  const grid = w.grid;
+  const k = Math.min(960 / grid.width, 540 / grid.height);
+  const t = grid.tile * k;
+  const COLORS = { 1: "#3f7f7a", 2: "#2c4a5a", 3: "#ff8fc8", 4: "#b98cff" };
+  g.fillStyle = "#06222e";
+  g.fillRect(0, 0, grid.width * k, grid.height * k);
+  for (let cy = 0; cy < grid.rows; cy++) {
+    for (let cx = 0; cx < grid.cols; cx++) {
+      const c = grid.get(cx, cy);
+      if (c === 0) continue;
+      g.fillStyle = COLORS[c] ?? "#888";
+      g.fillRect(cx * t, cy * t, Math.ceil(t), Math.ceil(t));
+    }
+  }
+  g.fillStyle = boss.phase >= 1 ? "#ff9ede" : "#8affe0";
+  g.beginPath();
+  g.arc(boss.x * k, boss.y * k, 42 * k, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#6ad8ff";
+  g.beginPath();
+  g.arc(w.player.x * k, w.player.y * k, 6, 0, Math.PI * 2);
+  g.fill();
+} else {
+  if (view.startsWith("wall-")) {
+    // o canto de cima à esquerda da arena interna, com a câmera solta do chefe
+    w.camera.x = w.camera.prevX = 300;
+    w.camera.y = w.camera.prevY = 380;
+  } else {
+    // câmera centrada entre o chefe e o jogador
+    w.camera.x = w.camera.prevX = boss.x + 100 - 480;
+    w.camera.y = w.camera.prevY = boss.y - 250;
+  }
+  renderer.draw(g, w, new Fx(), 1);
+}
+document.title = "pronto";
+</script>
+</body>
+</html>

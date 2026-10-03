@@ -12,6 +12,8 @@ export interface Palette {
   /** Faixa de 3 px no alto do topo exposto: a "luz" que dá relevo. */
   rockLight: string;
   rockShadow: string;
+  /** Paredes quebráveis (`Cell.Barrier`), se o mapa tiver: rachadas, para o jogador ler que cedem. */
+  barrier?: { body: string; top: string; light: string; crack: string };
 }
 
 export const PROTOTYPE_PALETTE: Palette = {

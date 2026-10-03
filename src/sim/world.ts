@@ -15,6 +15,7 @@ import { overlapsRock } from "./collision";
 import { makeEnemySlot, removeDeadEnemies, spawnEnemy, stepEnemies } from "./enemies/runner";
 import type { Enemy } from "./enemies/types";
 import type { SimEvent } from "./events";
+import { stepBarrierBreak, type BarrierBreak } from "./barrier";
 import { createPhaseFlow, stepPhase, type PhaseFlow, type PhaseSetup } from "./phase";
 import { makeHealSlot, stepPickups, type HealPickup } from "./pickups";
 import { createPlayer, stepPlayer, type Player, type PlayerIntent } from "./player";
@@ -43,6 +44,10 @@ export interface World {
   readonly pillars: number[][];
   /** Quantos pilares o mapa tinha no começo. */
   readonly pillarsTotal: number;
+  /** Blocos da parede quebrável que ainda estão de pé e não começaram a ceder. */
+  readonly barrier: number[];
+  /** O estilhaçar da parede em andamento (a Água-viva na fase 2), ou nulo. */
+  breaking: BarrierBreak | null;
   /** > 0 congela a simulação (o laço consulta isso antes de cada passo). */
   hitStopMs: number;
   timeMs: number;
@@ -65,6 +70,8 @@ export interface WorldSetup {
   phase?: PhaseSetup;
   /** Pilares dissolvíveis (índices de bloco de cada um). */
   pillars?: number[][];
+  /** Blocos da parede quebrável (índices). */
+  barrier?: number[];
 }
 
 /**
@@ -90,6 +97,8 @@ export function createWorld(seed: number, setup: WorldSetup): World {
     phase: setup.phase ? createPhaseFlow(setup.phase) : null,
     pillars: setup.pillars ? setup.pillars.map((p) => [...p]) : [],
     pillarsTotal: setup.pillars?.length ?? 0,
+    barrier: setup.barrier ? [...setup.barrier] : [],
+    breaking: null,
     hitStopMs: 0,
     timeMs: 0,
     nextId: 1,
@@ -120,8 +129,9 @@ export function createMapWorld(def: MapDef, seed: number): World {
     playerStart: map.playerStart,
     enemies: [],
     spawner: false,
-    phase: { waves: def.waves, boss: def.boss, bossSpawn: map.bossSpawn, spawnZones: map.spawnZones, spots },
+    phase: { waves: def.waves, boss: def.boss, bossSpawn: map.bossSpawn, spawnZones: map.spawnZones, spots, playArea: map.playArea },
     pillars: map.pillars,
+    barrier: map.barrier,
   });
 }
 
@@ -144,6 +154,7 @@ export function stepWorld(w: World, intent: PlayerIntent, dtMs: number): void {
   if (!w.playerDead) stepPlayer(w, intent, dtMs);
   stepEnemies(w, dtMs);
   stepBosses(w, dtMs);
+  stepBarrierBreak(w, dtMs);
   stepProjectiles(w, dtMs);
   stepPickups(w, dtMs);
   stepTestSpawner(w, dtMs);

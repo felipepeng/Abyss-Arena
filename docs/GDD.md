@@ -414,13 +414,21 @@ blocos estruturais).
 > **JARDIM DE CORAIS LUMINOSOS** — 120 m
 > *A luz aqui não vem de cima.*
 
-- **Tamanho:** 1440 × 900 (72 × 45 blocos).
+- **Tamanho:** 2240 × 1380 (112 × 69 blocos). No começo o jogador só tem a **arena interna**, de
+  1440 × 900 (72 × 45 blocos, o tamanho antigo do mapa), cercada por uma parede de **rocha roxa
+  rachada** (bloco `Barrier`, `B` no desenho). Em volta dela há uma **câmara externa** fechada, com
+  as próprias colunas de coral. As ondas nascem só na arena interna.
+- **A parede quebra na fase 2 da Água-viva** (§8.2): uma onda de destruição sai do ponto onde ela
+  está e derruba os 296 blocos, do mais perto ao mais longe, em ~1,4 s, com tremor de tela, bolhas
+  e som. Só o chefe quebra a parede; projéteis e lança não a tocam. A arena vira o mapa inteiro.
 - **Ideia:** um recife bioluminescente. **Colunas de coral** verticais atravessam a água,
   formando corredores e bolsões.
 - **Fixo:**
   - 7 a 9 colunas de coral espalhadas. São a **sombra do raio giratório**: a posição delas
     decide onde é seguro. Precisam deixar corredores de pelo menos 80 px.
   - Uma **área aberta** alta no centro, onde a Água-viva flutua sem esbarrar em tudo.
+  - 11 **colunas de coral externas** (4 do chão e 7 do teto, a maior com 28 blocos), com corredores
+    de 80 px. Depois da quebra, são cobertura nova e espaço para dar a volta no chefe.
   - 6 **posições de anêmona** nas faces das colunas de coral.
   - 4 zonas de nascimento.
 - **Procedural:** ramificações de coral nas colunas (blocos extras de 1–2), relevo do chão e
@@ -435,7 +443,8 @@ blocos estruturais).
 
 - **Cuidado:** o raio da Água-viva já é interrompido pela rocha. Com corais demais ele fica
   inofensivo; com poucos, impossível. Medir quantas das 64 direções são cortadas antes de
-  300 px (no protótipo eram 56) e mirar numa faixa entre 35 e 50.
+  300 px (no protótipo eram 56) e mirar numa faixa entre 35 e 50. A conta vale para a arena
+  interna.
 
 ### 7.3 Fosso do Abismo — Olho
 
@@ -492,18 +501,62 @@ chance de emendar uma investida extra com aviso de 294 ms.
 
 ### 8.2 Água-viva Colossal — controle de espaço
 
-380 de vida. Flutua a 215 px do jogador e 55 px acima dele. Fase 2 abaixo de 50%.
+460 de vida (eram 380). Flutua a 215 px do jogador e 55 px acima dele. **Três fases** (eram duas):
+100–65%, 65–30% e abaixo de 30%. A barra de vida mostra as marcas, e a música sobe na terceira.
+Os valores abaixo são [fase 1, fase 2, fase 3]; a cor dela muda a cada fase (verde-água, rosa,
+dourado incandescente).
 
 | Ataque | Aviso | Execução | Dano |
 |---|---|---|---|
-| Anel de esporos | 620 ms (440 na f2) | 14 projéteis (20 em 3 ondas na f2, cada onda girada 0,22 rad) | 11 |
-| Raio giratório | 700 ms (520 na f2), linha de mira + seta de giro | a ponta estica a 620 px/s, depois varre a 0,85 rad/s (1,0 na f2) | 16 |
-| Sucção | 520 ms | 1100 ms puxando a 640 px/s² num raio de 330 px, com um ferrão a cada 150 ms | 9 |
+| Anel de esporos | 600 / 430 / 370 ms | 15 / 20 / 24 projéteis; 1 / 3 / 4 ondas, cada uma girada 0,22 rad | 11 / 12 / 13 |
+| Raio giratório | 680 / 510 / 440 ms, linha de mira + seta de giro | a ponta estica a 620 px/s, depois varre a 0,9 / 1,0 / 1,1 rad/s | 16 / 16 / 18 |
+| Sucção | 520 / 480 / 440 ms | 1100 ms puxando a 640 px/s² num raio de 330 px, um ferrão a cada 150 / 130 / 105 ms | 9 |
+| **Onda de choque** (novo) | 760 / 640 / 540 ms | um anel que se expande a 270 px/s até 470 px, **com uma fresta** de 71° / 63° / 57° | 14 / 15 / 16 |
+| **Chamado das medusinhas** (novo, fase 2+) | 850 / 750 / 650 ms | 2 / 2 / 3 medusinhas nos pontos marcados | — |
+| **Farol** (novo, só fase 3) | 850 ms | 3 raios a 120° esticam a 820 px/s e giram juntos por 1,1 rad a 0,8 rad/s | 16 |
 
-As sete regras do raio (CONTEXTO §6.2) continuam valendo. A restrição **`ω · 215 px <
-250 px/s`** é dura: acima de ~1,16 rad/s o raio fica impossível de superar nadando.
+**Quebra da arena e movimento.** Na fase 1 ela faz o de sempre (paira acima do jogador) dentro da
+arena fechada, a 80 px/s. **Ao entrar na fase 2 ela quebra a parede** (§7.2) e passa a **rondar**,
+como o Olho: circula numa elipse de 330 px em volta de um ponto entre o centro do mapa e o
+jogador (30% do caminho), recua se ele chegar a menos de 150 px e fica a 110 px das bordas. A
+velocidade sobe por fase (80 / 110 / 130 px/s). O resultado é que ela deixa de ficar sempre acima
+do jogador e ele precisa **dar a volta** nela.
 
-**No mapa novo:** as colunas de coral são a sombra do raio (§7.2).
+Pausa entre ataques: 700 → 470 → 260 ms. Sorteio por fase: a 1 tem anel, raio, sucção e onda de
+choque; a 2 troca a sucção por mais uma onda de choque e ganha o chamado; a 3 tem anel, raio,
+sucção, chamado e, em dobro, onda de choque e farol.
+
+**Onda de choque.** No aviso, a fresta aparece como um arco branco pulsando, com duas marcas, e o
+sino contrai. A borda da fresta abre a 0,25–0,75 rad do jogador, então ele nunca começa dentro dela:
+tem que nadar até a abertura (o anel chega em ~0,65 s), **atravessar o anel no dash** (a invulnerabilidade
+cobre o cruzamento) ou **se esconder atrás de uma coluna de coral**, que para o anel como para o raio.
+
+**Chamado.** As crias (medusinhas comuns, GDD §6.2) não soltam cura, ficam a no máximo 4 vivas e
+**somem quando ela morre**. Os pontos de nascimento aparecem marcados durante o aviso e ficam a pelo
+menos 48 px uns dos outros.
+
+**Farol.** Cada raio varre só 63°, então entre os raios sobram cunhas seguras de 57° que giram com
+eles. O aviso desenha as cunhas que serão varridas (em dourado fraco), e a rocha faz sombra nelas.
+O jogador sempre começa dentro da varredura de um raio: tem que se mexer. Regra 3: 0,8 · 215 =
+172 px/s, abaixo de 250.
+
+**Combos.** Nas fases finais, a onda de choque (45% / 55%), o chamado (40% / 60%) e o farol (45%, só
+na 3) podem emendar um anel de esporos com aviso de 320 ms, sem a pausa de pensar. Cada ataque do
+combo ainda avisa.
+
+As sete regras do raio (CONTEXTO §6.2) continuam valendo. A restrição **`ω · 215 px < 250 px/s`** é
+dura: acima de ~1,16 rad/s o raio fica impossível de superar nadando (o máximo agora é 1,1: 237 px/s).
+
+**Posição relativa medida** (jogador-robô): fase 1, a Água-viva fica acima do jogador em
+100% do tempo (variação de ângulo 0,04); fase 2, 37% acima e 56% abaixo (0,57); fase 3, 42% / 53%
+(0,40).
+
+**Medido no M8 (`npm run balance`, jogador-robô, dano por minuto):** fase 1 ≈ 180 (era ≈ 140), fase 2
+≈ 300 (era ≈ 200–250) e fase 3 ≈ 340–390 (nova). O Olho fica em ≈ 120–175 / 270–340 / 360–440 nas
+suas três fases: a Água-viva agora tem o mesmo formato de subida. É um robô, e o número serve para
+comparar com o antes, não para dizer se está justo.
+
+**No mapa novo:** as colunas de coral são a sombra do raio, do farol e da onda de choque (§7.2).
 
 ### 8.3 Olho do Abismo — bullet hell
 

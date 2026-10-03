@@ -1,6 +1,6 @@
 import type { Palette } from "../config/palette";
 import { contextScale } from "../core/display";
-import type { Grid } from "../world/grid";
+import { Cell, type Grid } from "../world/grid";
 
 // Rocha em cache do tamanho do mundo. Só é redesenhada quando a grade muda (erosão, pilar
 // dissolvido) ou quando a escala da tela muda; no frame, copia-se apenas a região da câmera.
@@ -74,14 +74,30 @@ export class RockLayer {
         const x0 = px(cx * t);
         const x1 = px((cx + 1) * t);
         const exposedTop = !grid.isSolid(cx, cy - 1);
-        g.fillStyle = exposedTop ? p.rockTop : p.rockBody;
+        const barrier = p.barrier && grid.get(cx, cy) === Cell.Barrier ? p.barrier : null;
+        g.fillStyle = barrier ? (exposedTop ? barrier.top : barrier.body) : exposedTop ? p.rockTop : p.rockBody;
         g.fillRect(x0, y0, x1 - x0, y1 - y0);
         g.fillStyle = p.rockShadow;
         g.fillRect(x1 - shadow, y0, shadow, y1 - y0);
         g.fillRect(x0, y1 - shadow, x1 - x0, shadow);
         if (exposedTop) {
-          g.fillStyle = p.rockLight;
+          g.fillStyle = barrier ? barrier.light : p.rockLight;
           g.fillRect(x0, y0, x1 - x0, shadow);
+        }
+        if (barrier) {
+          // rachaduras: um traço em zigue-zague por bloco, com a posição sorteada pelo próprio
+          // bloco (sem aleatório: o cache é redesenhado e não pode piscar)
+          const h = (cx * 73856093) ^ (cy * 19349663);
+          const ox = x0 + ((h >>> 3) % 5) * ((x1 - x0) / 6) + (x1 - x0) / 6;
+          g.strokeStyle = barrier.crack;
+          g.globalAlpha = 0.55;
+          g.lineWidth = Math.max(1, px(1.2));
+          g.beginPath();
+          g.moveTo(ox, y0);
+          g.lineTo(ox + ((h >>> 7) % 2 ? 1 : -1) * (x1 - x0) * 0.25, y0 + (y1 - y0) * 0.45);
+          g.lineTo(ox + ((h >>> 9) % 2 ? 1 : -1) * (x1 - x0) * 0.12, y1);
+          g.stroke();
+          g.globalAlpha = 1;
         }
       }
     }

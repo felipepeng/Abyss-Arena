@@ -371,7 +371,8 @@ Substitui as cinco redes de segurança do protótipo (CONTEXTO §9):
 interface MapDef {
   id: "rift" | "coral" | "abyss";
   size: { cols: number; rows: number };
-  layout: string[];              // ASCII: '#' rocha, 'P' protegida, 'C' coral, '.' água,
+  playArea?: TileRect;           // onde as ondas podem nascer (o Coral: só a arena interna)
+  layout: string[];              // ASCII: '#' rocha, 'P' protegida, 'C' coral, 'B' parede quebrável, '.' água,
                                  //        '~' área onde o procedural pode pôr detalhes
   markers: {
     playerStart: Pt; bossSpawn: Pt;
@@ -402,6 +403,13 @@ interface MapDef {
   `sim/pillars.ts` os dissolve por fase.
 - As posições dos 26 pilares saíram do algoritmo do protótipo, rodado uma vez com semente fixa, e
   estão gravadas no mapa: a cobertura é aprendível.
+- **Parede quebrável (`Cell.Barrier`, `B`):** sólida como rocha, mas os projéteis não a corroem.
+  O builder junta os índices dela em `BuiltMap.barrier` (e a área jogável em `BuiltMap.playArea`),
+  que vão para `world.barrier`. `sim/barrier.ts` guarda o estado da quebra (`world.breaking`):
+  `startBarrierBreak` ordena os blocos por distância ao ponto de origem e emite `arenaBreak`;
+  `stepBarrierBreak` troca por água `ARENA_BREAK.cellsPerSec` blocos por segundo e sorteia bolhas
+  (`pillarCrumble`), com a RNG da simulação. Quem inicia a quebra é o chefe, em `onPhaseEnter`
+  (`BossDef.onPhaseEnter`). `BossDef.maxSpeed` deixa o limite de velocidade depender da fase.
 - O Coral ganha galhos procedurais (`procedural.branches`) na faixa `~` de 1 bloco ao lado de cada
   coluna.
 - Até existirem os menus (M6), o mapa vem da URL: `?map=rift|coral|abyss`.

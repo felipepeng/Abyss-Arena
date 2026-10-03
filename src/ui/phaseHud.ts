@@ -17,7 +17,7 @@ export interface TitleCard {
 /** Cor da barra de vida por fase, e da seta de fora da tela (CONTEXTO §2.3). */
 const BOSS_COLORS: Record<BossKind, { bar: readonly string[]; arrow: string }> = {
   crab: { bar: ["#e08a3c", "#ff5a3c"], arrow: "#e08a3c" },
-  jelly: { bar: ["#5fd9c4", "#ff6fc0"], arrow: "#5fd9c4" },
+  jelly: { bar: ["#5fd9c4", "#ff6fc0", "#ffd24a"], arrow: "#5fd9c4" },
   eye: { bar: ["#6ad8ff", "#ffa04a", "#ff5a9e"], arrow: "#ff9ad8" },
 };
 

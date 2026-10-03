@@ -38,6 +38,9 @@ export const WARN_KEYS = [
   "warn.jelly.ring",
   "warn.jelly.beam",
   "warn.jelly.pull",
+  "warn.jelly.shock",
+  "warn.jelly.call",
+  "warn.jelly.lighthouse",
   "warn.eye.fan",
   "warn.eye.spiral",
   "warn.eye.siege",
@@ -59,6 +62,7 @@ export type SfxName =
   | "bossAppear"
   | "bossPhase"
   | "bossImpact"
+  | "arenaBreak"
   | "bossDie"
   | "menuMove"
   | "menuConfirm"
@@ -156,6 +160,15 @@ export const SFX: Readonly<Record<SfxName, SfxDef>> = {
   bossImpact: {
     layers: [{ kind: "osc", wave: "sine", freq: [105, 38], gain: 0.5, durMs: 280 }],
   },
+  // a parede cede: um estrondo grave e longo que racha em pedras (ruído filtrado descendo)
+  arenaBreak: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [70, 30], gain: 0.5, durMs: 1500, attackMs: 40 },
+      { kind: "noise", gain: 0.45, durMs: 1400, attackMs: 30, filter: { type: "lowpass", freq: [1400, 90] } },
+      { kind: "noise", gain: 0.3, durMs: 900, attackMs: 200, delayMs: 200, filter: { type: "bandpass", freq: [900, 260], q: 1.1 } },
+    ],
+  },
   // explosão grave longa
   bossDie: {
     priority: true,
@@ -215,6 +228,30 @@ export const SFX: Readonly<Record<SfxName, SfxDef>> = {
     layers: [
       { kind: "noise", gain: 0.3, durMs: 560, attackMs: 200, filter: { type: "lowpass", freq: [420, 140] } },
       { kind: "osc", wave: "sine", freq: [95, 55], gain: 0.34, durMs: 560 },
+    ],
+  },
+  // a onda de choque inspira (um som grave que sobe e se contrai) e solta um baque; o chamado
+  // sobe em três notas (o do Caranguejo desce); o farol é uma sirene grave que vai subindo
+  "warn.jelly.shock": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [260, 90], gain: 0.3, durMs: 780, attackMs: 400 },
+      { kind: "osc", wave: "triangle", freq: [120, 60], gain: 0.2, durMs: 220, delayMs: 620 },
+    ],
+  },
+  "warn.jelly.call": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [300, 320], gain: 0.26, durMs: 130 },
+      { kind: "osc", wave: "sine", freq: [370, 390], gain: 0.26, durMs: 130, delayMs: 150 },
+      { kind: "osc", wave: "sine", freq: [460, 480], gain: 0.26, durMs: 200, delayMs: 300 },
+    ],
+  },
+  "warn.jelly.lighthouse": {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sawtooth", freq: [90, 200], gain: 0.26, durMs: 940, attackMs: 620, filter: { type: "lowpass", freq: [450, 900] } },
+      { kind: "osc", wave: "sine", freq: [52, 52], gain: 0.3, durMs: 900, attackMs: 300 },
     ],
   },
   // Olho: o leque estala, a espiral gira (dois tons subindo), o cerco pulsa três vezes, os

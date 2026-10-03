@@ -42,6 +42,11 @@ export class Fx {
       }
     } else if (source === "jelly" && attack === "beam") {
       this.shake.add(FX.jelly.beam.shake.ms, FX.jelly.beam.shake.amp);
+    } else if (source === "jelly" && attack === "shock") {
+      b.emit(x, y, FX.jelly.shock.bubbles);
+      this.shake.add(FX.jelly.shock.shake.ms, FX.jelly.shock.shake.amp);
+    } else if (source === "jelly" && attack === "call") {
+      b.emit(x, y, FX.jelly.call.bubbles);
     } else if (source === "eye" && attack === "seek") {
       b.emit(x, y, FX.eye.seek.bubbles);
     }
@@ -103,6 +108,10 @@ export class Fx {
         break;
       case "pullStream":
         b.emit(e.x, e.y, FX.jelly.pullStream.bubbles);
+        break;
+      case "arenaBreak":
+        b.emit(e.x, e.y, FX.arenaBreak.bubbles);
+        this.shake.add(FX.arenaBreak.shake.ms, FX.arenaBreak.shake.amp);
         break;
       case "pillarCrumble":
         b.emit(e.x, e.y, FX.pillarCrumble.bubbles);

@@ -93,7 +93,7 @@ function stepBoss(b: Boss, w: World, dtMs: number): void {
   }
 
   const executing = b.state === "execute" ? attackOf(def, b) : null;
-  if (!executing?.uncapped) clampSpeed(b, def.stats.speed);
+  if (!executing?.uncapped) clampSpeed(b, def.maxSpeed?.(b) ?? def.stats.speed);
   applyDrag(b, def.stats.drag, dt);
   moveBody(b, w.grid, dt);
   def.orient?.(b, aimAng);

@@ -32,6 +32,11 @@ export interface PhaseSetup {
    * do Leito e as tocas de enguia do Coral. Cada onda que os lista ocupa uma posição livre.
    */
   spots?: Readonly<Partial<Record<EnemyKind, readonly { x: number; y: number }[]>>>;
+  /**
+   * Onde as ondas podem nascer quando nenhuma zona serve. Sem isto, valeria o mapa inteiro, e uma
+   * câmara fechada atrás da parede quebrável (o Coral) prenderia inimigos fora do alcance.
+   */
+  playArea?: PxRect;
 }
 
 interface PendingSpawn {
@@ -187,9 +192,10 @@ function pickSpawnPoint(w: World, f: PhaseFlow, kind: EnemyKind): { x: number; y
     const y = w.rng.range(z.y + r, z.y + z.h - r);
     if (ok(x, y)) return { x, y };
   }
+  const area = f.setup.playArea ?? { x: 0, y: 0, w: g.width, h: g.height };
   for (let i = 0; i < WAVES.placementTries; i++) {
-    const x = w.rng.range(r, g.width - r);
-    const y = w.rng.range(r, g.height - r);
+    const x = w.rng.range(area.x + r, area.x + area.w - r);
+    const y = w.rng.range(area.y + r, area.y + area.h - r);
     if (ok(x, y)) return { x, y };
   }
   return null;

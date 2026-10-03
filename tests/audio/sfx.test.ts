@@ -31,7 +31,7 @@ describe("definições dos sons", () => {
   it("os efeitos comuns duram no máximo 1 s (só a morte do jogador e as do chefe são mais longas)", () => {
     for (const name of NAMES) {
       const total = Math.max(...SFX[name].layers.map((l) => (l.delayMs ?? 0) + l.durMs));
-      if (name === "bossDie" || name === "bossAppear" || name === "playerDie") continue;
+      if (name === "bossDie" || name === "bossAppear" || name === "playerDie" || name === "arenaBreak") continue;
       expect(total, name).toBeLessThanOrEqual(1000);
     }
   });
@@ -52,8 +52,8 @@ describe("definições dos sons", () => {
     expect(SFX.hit.minGapMs).toBeGreaterThan(0);
   });
 
-  it("há exatamente 11 avisos de chefe, todos com definição", () => {
-    expect(WARN_KEYS).toHaveLength(11);
+  it("há exatamente 14 avisos de chefe, todos com definição", () => {
+    expect(WARN_KEYS).toHaveLength(14);
     for (const k of WARN_KEYS) expect(SFX[k]).toBeDefined();
   });
 });
@@ -73,6 +73,7 @@ describe("evento → som", () => {
     ["morte de inimigo", { t: "enemyDied", ...at, radius: 10, kind: "fish" }, "enemyDie"],
     ["morte do chefe", { t: "bossDied", ...at, radius: 40, boss: "crab" }, "bossDie"],
     ["morte do jogador", { t: "playerDied", ...at }, "playerDie"],
+    ["a parede da arena cede", { t: "arenaBreak", ...at }, "arenaBreak"],
     ["chefe entra", { t: "bossAppeared", ...at, boss: "eye" }, "bossAppear"],
     ["chefe muda de fase", { t: "bossPhase", ...at, boss: "eye", phase: 1 }, "bossPhase"],
     ["investida do chefe bate na rocha", { t: "bossImpact", ...at, boss: "crab" }, "bossImpact"],
