@@ -303,7 +303,7 @@ Detalhes completos no CONTEXTO §5.
 **Visual do Peixe** (redesenhado depois do M8): corpo de torpedo com degradê e contorno, nadadeiras
 dorsal, ventral e peitoral, cauda bifurcada que balança no ritmo do serpenteio e olho com anel claro e
 brilho. No **aviso** o corpo fica âmbar (com o halo e a linha de mira de sempre) e o cenho franze; na
-**investida** a cauda fica reta e aparecem riscos de velocidade. Só apresentação. Antes e depois em
+**investida** a cauda fica reta e aparecem riscos de velocidade. A **dorsal fica sempre para cima**: ele gira para onde nada, então o desenho é espelhado quando aponta para a esquerda (com uma zona morta, para não piscar nadando na vertical). A Lampreia, que tem o olho de um lado só, usa o mesmo espelho. Só apresentação. Antes e depois em
 `docs/screenshots/fish/`.
 
 **Fora do raio de visão** (Peixe 300 px, Lampreia 560 px), eles não ficam parados esperando o

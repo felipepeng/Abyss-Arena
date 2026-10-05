@@ -1,6 +1,7 @@
 import { TAU } from "../../core/math";
 import type { Enemy } from "../../sim/enemies/types";
 import type { Drawer } from "./exclusive";
+import { facingFlip } from "./flip";
 
 // Peixe (CONTEXTO §2.3 e §5.1): corpo de torpedo que afina até o pedúnculo, degradê com a luz fixa
 // no mundo, contorno escuro, nadadeiras dorsal, ventral e peitoral e uma cauda bifurcada que balança
@@ -59,6 +60,10 @@ export const drawFish: Drawer = (g, e, flashing) => {
     g.stroke();
     g.restore();
   }
+
+  const sy = facingFlip(e);
+  g.save();
+  g.scale(1, sy);
 
   const pal = tel ? WARN : NORMAL;
   const W = "#ffffff";
@@ -133,13 +138,14 @@ export const drawFish: Drawer = (g, e, flashing) => {
   if (flashing) {
     g.fillStyle = W;
     g.fill();
+    g.restore();
     return;
   }
   // a luz vem de cima à esquerda da tela: o brilho é calculado no mundo, desfazendo a rotação
   const lx = -r * 0.3;
   const ly = -r * 0.45;
   const hx = lx * Math.cos(-e.ang) - ly * Math.sin(-e.ang);
-  const hy = lx * Math.sin(-e.ang) + ly * Math.cos(-e.ang);
+  const hy = (lx * Math.sin(-e.ang) + ly * Math.cos(-e.ang)) * sy;
   const grad = g.createRadialGradient(hx, hy, 1.5, 0, 0, r * 1.6);
   grad.addColorStop(0, pal.hi);
   grad.addColorStop(0.55, pal.mid);
@@ -216,4 +222,5 @@ export const drawFish: Drawer = (g, e, flashing) => {
     g.lineTo(ex + 3.8, ey - 1.4);
     g.stroke();
   }
+  g.restore();
 };

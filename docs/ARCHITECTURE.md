@@ -87,7 +87,8 @@ src/
     ambient.ts       partículas de ambiente (decoração)
     rocks.ts         rocha em OffscreenCanvas, redesenhada só quando a grade muda
     creatures/       desenhadores: player (recebe o tempo do mundo para o pulso do anel de carga),
-                     enemies (circulador e o saco de pancada), fish, exclusive (os seis
+                     enemies (circulador e o saco de pancada), fish, flip (espelha na vertical quem nada para a
+                     esquerda, para o lado de cima ficar para cima: peixe e lampreia), exclusive (os seis
                      exclusivos), bosses (só despacha), crab, jelly, eye. Cada criatura
                      desenha o próprio aviso
     spawns.ts        aviso de nascimento (redemoinho)

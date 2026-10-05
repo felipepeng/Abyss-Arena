@@ -4,6 +4,7 @@ import { URCHIN } from "../../config/enemies/urchin";
 import { WATCHER } from "../../config/enemies/watcher";
 import { TAU } from "../../core/math";
 import type { Enemy } from "../../sim/enemies/types";
+import { facingFlip } from "./flip";
 
 // Os seis inimigos exclusivos de mapa (GDD §6.2), vetoriais como o resto. Regra 2: o aviso de
 // cada ataque é parte do desenho da criatura (halo pulsante, setor, linha, espinhos que
@@ -434,6 +435,9 @@ export const drawLamprey: Drawer = (g, e, flashing) => {
   const k = progress(e);
 
   if (tel) warnHalo(g, e, r + 8, "#ff9a9a");
+  // o olho fica de um lado só: espelha para ele ficar sempre em cima (ver flip.ts)
+  g.save();
+  g.scale(1, facingFlip(e));
   // cauda
   g.fillStyle = flashing ? "#ffffff" : "#6e4a5e";
   g.beginPath();
@@ -468,4 +472,5 @@ export const drawLamprey: Drawer = (g, e, flashing) => {
   g.stroke();
   g.fillStyle = "#ffe066";
   disc(g, r * 0.2, -r * 0.35, 1.5);
+  g.restore();
 };
