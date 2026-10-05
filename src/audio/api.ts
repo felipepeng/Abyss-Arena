@@ -22,6 +22,15 @@ export interface AudioApi {
   playTrack(track: TrackId): void;
   /** Camada de intensidade da música: ondas (0), chefe (1), última fase do chefe (2). */
   setIntensity(level: MusicLevel): void;
+  /** Para a música e o ambiente do mapa (a cena de descida só tem o som da água). */
+  stopTrack(): void;
+  /**
+   * A água do mergulhador na cena de descida, com a velocidade dele de 0 a 1. A primeira chamada
+   * começa o som; as seguintes só mudam o `level`, sem corte.
+   */
+  water(level: number): void;
+  /** Some com a água. */
+  stopWater(): void;
 }
 
 /** Áudio que não faz nada: os testes e o navegador sem Web Audio. */
@@ -30,4 +39,7 @@ export class SilentAudio implements AudioApi {
   ui(): void {}
   playTrack(): void {}
   setIntensity(): void {}
+  stopTrack(): void {}
+  water(): void {}
+  stopWater(): void {}
 }

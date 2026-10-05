@@ -19,3 +19,14 @@ export interface AmbienceSource {
   /** Some em `fadeMs` e libera tudo. */
   stop(fadeMs: number): void;
 }
+
+// A água do mergulhador na cena de descida (`waterRush.ts`): toca sozinha, sem música, e segue a
+// velocidade dele.
+export interface WaterSource {
+  /** Começa a tocar em `out`, com o ruído branco que o motor já criou. */
+  start(ctx: AudioContext, out: AudioNode, noise: AudioBuffer): void;
+  /** Velocidade do mergulhador, de 0 (parado) a 1 (queda). Muda sem corte. */
+  setLevel(level: number): void;
+  /** Some em `fadeMs` e libera tudo. */
+  stop(fadeMs: number): void;
+}

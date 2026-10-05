@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AudioEngine, gain } from "../../src/audio/engine";
 import type { AmbienceDef } from "../../src/config/ambience";
 import { ProceduralMusic } from "../../src/audio/music";
-import type { AmbienceSource, MusicSource } from "../../src/audio/sources";
+import type { AmbienceSource, MusicSource, WaterSource } from "../../src/audio/sources";
 import { AUDIO } from "../../src/config/audio";
 import { AMBIENCE } from "../../src/config/ambience";
 import { MUSIC, MUSIC_LAYERS, type MusicLevel, type MusicParams } from "../../src/config/music";
@@ -43,8 +43,25 @@ class SpyAmbience implements AmbienceSource {
   }
 }
 
+/** Água de mentira: só conta o que o motor pediu (a de verdade tem o seu arquivo de testes). */
+class SpyWater implements WaterSource {
+  started = 0;
+  levels: number[] = [];
+  stopped: number[] = [];
+  start(): void {
+    this.started++;
+  }
+  setLevel(level: number): void {
+    this.levels.push(level);
+  }
+  stop(fadeMs: number): void {
+    this.stopped.push(fadeMs);
+  }
+}
+
 function setup(opts: { noContext?: boolean } = {}) {
   const ambiences: SpyAmbience[] = [];
+  const waters: SpyWater[] = [];
   const ctx = new FakeContext();
   const settings = new Settings();
   const made: SpyMusic[] = [];
@@ -66,8 +83,13 @@ function setup(opts: { noContext?: boolean } = {}) {
       ambiences.push(a);
       return a;
     },
+    () => {
+      const w = new SpyWater();
+      waters.push(w);
+      return w;
+    },
   );
-  return { ctx, settings, engine, made, ambiences, contexts: () => contexts };
+  return { ctx, settings, engine, made, ambiences, waters, contexts: () => contexts };
 }
 
 const at = { x: 0, y: 0 };
@@ -230,6 +252,46 @@ describe("ambiente dos mapas", () => {
     expect(ambiences).toHaveLength(0);
     engine.unlock();
     expect(ambiences).toHaveLength(1);
+  });
+});
+
+describe("cena de descida: sem música e só a água", () => {
+  it("stopTrack desvanece a música e o ambiente; a mesma trilha pode recomeçar depois", () => {
+    const { engine, made, ambiences } = setup();
+    engine.unlock();
+    engine.playTrack("rift");
+    engine.stopTrack();
+    expect(made[0]?.stopped).toEqual([AUDIO.trackFadeMs]);
+    expect(ambiences[0]?.stopped).toEqual([AUDIO.trackFadeMs]);
+    engine.playTrack("rift"); // a fase seguinte pede a sua trilha
+    expect(made).toHaveLength(2);
+    expect(made[1]?.started).toBe(1);
+  });
+
+  it("uma trilha pedida e depois cancelada antes do primeiro gesto não começa", () => {
+    const { engine, made } = setup();
+    engine.playTrack("rift");
+    engine.stopTrack();
+    engine.unlock();
+    expect(made).toHaveLength(0);
+  });
+
+  it("a água começa na primeira chamada, só muda o nível nas seguintes e some com fade", () => {
+    const { engine, waters } = setup();
+    engine.water(0.2); // antes do gesto: nada
+    expect(waters).toHaveLength(0);
+    engine.unlock();
+    engine.water(0.2);
+    engine.water(0.6);
+    engine.water(1);
+    expect(waters).toHaveLength(1);
+    expect(waters[0]?.started).toBe(1);
+    expect(waters[0]?.levels).toEqual([0.2, 0.6, 1]);
+    engine.stopWater();
+    expect(waters[0]?.stopped).toEqual([AUDIO.trackFadeMs]);
+    engine.stopWater(); // sem água: nada quebra
+    engine.water(0.5); // outra descida: água nova
+    expect(waters).toHaveLength(2);
   });
 });
 

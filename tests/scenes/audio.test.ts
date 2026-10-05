@@ -40,6 +40,18 @@ class Spy implements AudioApi {
   setIntensity(level: MusicLevel): void {
     this.levels.push(level);
   }
+  stopped = 0;
+  waterLevels: number[] = [];
+  waterStopped = 0;
+  stopTrack(): void {
+    this.stopped++;
+  }
+  water(level: number): void {
+    this.waterLevels.push(level);
+  }
+  stopWater(): void {
+    this.waterStopped++;
+  }
 }
 
 function makeApp(): App & { spy: Spy } {

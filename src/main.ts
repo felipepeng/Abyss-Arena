@@ -9,6 +9,8 @@ import { Settings } from "./core/settings";
 import { DebugOverlay } from "./debug/overlay";
 import type { App } from "./scenes/app";
 import { pauseIfPlaying } from "./scenes/autopause";
+import { DescentScene } from "./scenes/descent";
+import { DESCENT, newSession, nextInDescent } from "./scenes/flow";
 import { GameScene } from "./scenes/game";
 import { SceneManager } from "./scenes/manager";
 import { TitleScene } from "./scenes/title";
@@ -57,8 +59,14 @@ const app: App = { input, scenes, debug, settings, audio, nextSeed };
 // O jogo abre no título. Atalhos de desenvolvimento, que pulam os menus:
 //   `?map=rift|coral|abyss`  abre direto a fase daquele mapa (Arena livre)
 //   `?arena=test`            a arena de teste do M1–M2 (sacos de pancada, nascimento por tempo)
+//   `?descent=0|1`           a cena de descida entre o Leito e o Coral (0) ou entre o Coral e o Fosso (1)
 const shortcutMap = MAPS[params.get("map") ?? ""];
-if (params.get("arena") === "test") {
+const descentFrom = params.has("descent") ? DESCENT[Number(params.get("descent"))] : undefined;
+const descentTo = descentFrom ? nextInDescent(descentFrom) : null;
+if (descentFrom && descentTo) {
+  const next = { mode: { kind: "map", map: descentTo }, seed: nextSeed(), flow: { kind: "descent", session: newSession() } } as const;
+  scenes.start(new DescentScene(app, { from: descentFrom, next }));
+} else if (params.get("arena") === "test") {
   scenes.start(new GameScene(app, { mode: { kind: "test" }, seed: nextSeed(), flow: { kind: "test" } }));
 } else if (shortcutMap) {
   scenes.start(new GameScene(app, { mode: { kind: "map", map: shortcutMap }, seed: nextSeed(), flow: { kind: "free" } }));

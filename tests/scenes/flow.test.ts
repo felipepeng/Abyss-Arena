@@ -7,6 +7,7 @@ import { Input } from "../../src/core/input";
 import { Settings } from "../../src/core/settings";
 import type { App } from "../../src/scenes/app";
 import { ArenaSelectScene } from "../../src/scenes/arenaSelect";
+import { DESCENT_TOTAL_MS, DescentScene } from "../../src/scenes/descent";
 import { DESCENT, formatTime, newSession, nextInDescent } from "../../src/scenes/flow";
 import { GameScene } from "../../src/scenes/game";
 import { SceneManager, type Scene } from "../../src/scenes/manager";
@@ -61,6 +62,13 @@ function press(app: App, code: string): void {
 /** Confirma a opção selecionada e espera a troca de tela. */
 function confirm(app: App): void {
   press(app, "Enter");
+  settle(app);
+}
+
+/** Deixa a cena de descida rodar até o fim e a fase seguinte entrar. */
+function descend(app: App): void {
+  expect(app.scenes.top).toBeInstanceOf(DescentScene);
+  tick(app, Math.ceil(DESCENT_TOTAL_MS / STEP) + 5);
   settle(app);
 }
 
@@ -219,6 +227,7 @@ describe("a Descida inteira", () => {
     const first = top<ResultScene>(app);
     expect(first.title).toBe("FASE CONCLUÍDA");
     confirm(app);
+    descend(app);
 
     const coral = top<GameScene>(app);
     expect(coral.gameParams.mode).toEqual({ kind: "map", map: CORAL });
@@ -226,6 +235,7 @@ describe("a Descida inteira", () => {
     expect(app.seeds).toHaveLength(2);
     clear(app, coral);
     confirm(app);
+    descend(app);
 
     const abyss = top<GameScene>(app);
     expect(abyss.gameParams.mode).toEqual({ kind: "map", map: ABYSS });
@@ -244,9 +254,11 @@ describe("a Descida inteira", () => {
     const { app, game: rift } = startDescent();
     clear(app, rift);
     confirm(app);
+    descend(app);
     const coral = top<GameScene>(app);
     clear(app, coral);
     confirm(app);
+    descend(app);
     const abyss = top<GameScene>(app);
     die(app, abyss);
     confirm(app);

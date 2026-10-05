@@ -12,15 +12,19 @@
 // inválidas e quanto do tempo é silêncio. Serve para pegar parâmetro rejeitado pelo navegador,
 // som mudo ou som estourado sem precisar ouvir.
 //   /tools/audio-check.html   →  o resultado fica em window.__result (JSON) e na página
+//   /tools/audio-check.html?only=water   →  só a água da cena de descida (rápido)
 import { createNoiseBuffer, playSfx } from "/src/audio/synth.ts";
 import { ProceduralMusic } from "/src/audio/music.ts";
 import { Ambience } from "/src/audio/ambience.ts";
+import { WaterRush } from "/src/audio/waterRush.ts";
+import { WATER_RUSH } from "/src/config/waterRush.ts";
 import { AMBIENCE } from "/src/config/ambience.ts";
 import { AUDIO } from "/src/config/audio.ts";
 import { MUSIC } from "/src/config/music.ts";
 import { SFX } from "/src/config/sfx.ts";
 
 const RATE = 44100;
+const only = new URLSearchParams(location.search).get("only");
 
 // a mesma cadeia do motor: barramento → ganho geral → compressor → saída
 function chain(ctx) {
@@ -59,9 +63,9 @@ function stats(buf) {
   };
 }
 
-const result = { sfx: {}, music: {}, ambience: {}, errors: [] };
+const result = { sfx: {}, music: {}, ambience: {}, water: {}, errors: [] };
 
-for (const [name, def] of Object.entries(SFX)) {
+for (const [name, def] of Object.entries(only ? {} : SFX)) {
   try {
     const ctx = new OfflineAudioContext(1, Math.ceil(RATE * 2), RATE);
     const noise = createNoiseBuffer(ctx, AUDIO.noiseSeconds, () => Math.random());
@@ -73,7 +77,7 @@ for (const [name, def] of Object.entries(SFX)) {
 }
 
 // cada trilha por 8 s em cada nível, com o agendador rodando à mão (o tempo do offline não anda)
-for (const id of Object.keys(MUSIC)) {
+for (const id of Object.keys(only ? {} : MUSIC)) {
   for (const level of [0, 1, 2]) {
     try {
       const secs = 8;
@@ -91,7 +95,7 @@ for (const id of Object.keys(MUSIC)) {
 }
 
 // o ambiente de cada mapa por 40 s (tempo suficiente para os esporádicos soarem), sem música
-for (const id of Object.keys(AMBIENCE)) {
+for (const id of Object.keys(only ? {} : AMBIENCE)) {
   try {
     const secs = 40;
     const ctx = new OfflineAudioContext(1, RATE * secs, RATE);
@@ -102,6 +106,22 @@ for (const id of Object.keys(AMBIENCE)) {
     result.ambience[id] = stats(await ctx.startRendering());
   } catch (e) {
     result.errors.push(`ambience ${id}: ${e}`);
+  }
+}
+
+// a água da cena de descida em três velocidades (nadando, a meio caminho e em plena queda), 6 s cada
+for (const level of [0.22, 0.6, 1]) {
+  try {
+    const secs = 6;
+    const ctx = new OfflineAudioContext(1, RATE * secs, RATE);
+    const noise = createNoiseBuffer(ctx, AUDIO.noiseSeconds, () => Math.random());
+    const water = new WaterRush(WATER_RUSH, () => Math.random(), { autoTick: false });
+    water.start(ctx, chain(ctx), noise);
+    water.setLevel(level);
+    for (let t = 0.1; t < secs; t += 0.1) water.tick(t);
+    result.water[level] = stats(await ctx.startRendering());
+  } catch (e) {
+    result.errors.push(`water ${level}: ${e}`);
   }
 }
 

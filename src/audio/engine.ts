@@ -2,14 +2,16 @@ import { AMBIENCE, type AmbienceDef } from "../config/ambience";
 import { AUDIO } from "../config/audio";
 import { MUSIC, type MusicLevel, type MusicParams, type TrackId } from "../config/music";
 import { SFX, type SfxName } from "../config/sfx";
+import { WATER_RUSH, type WaterRushDef } from "../config/waterRush";
 import type { Settings } from "../core/settings";
 import type { SimEvent } from "../sim/events";
 import type { AudioApi, UiSound } from "./api";
 import { Ambience } from "./ambience";
 import { ProceduralMusic } from "./music";
 import { soundFor } from "./soundMap";
-import type { AmbienceSource, MusicSource } from "./sources";
+import type { AmbienceSource, MusicSource, WaterSource } from "./sources";
 import { createNoiseBuffer, playSfx, type Voice } from "./synth";
+import { WaterRush } from "./waterRush";
 
 // Motor de áudio (ARCHITECTURE §8): cria o `AudioContext` no primeiro gesto do jogador (política
 // dos navegadores), com dois barramentos independentes, música e efeitos, cada um com o seu
@@ -38,6 +40,7 @@ export class AudioEngine implements AudioApi {
   private wantedTrack: TrackId | null = null;
   private track: { id: TrackId; source: MusicSource; ambience: AmbienceSource | null } | null = null;
   private level: MusicLevel = 0;
+  private waterSource: WaterSource | null = null;
   private voices: Voice[] = [];
   private charge: Voice | null = null;
   private readonly lastPlayed = new Map<SfxName, number>();
@@ -49,6 +52,7 @@ export class AudioEngine implements AudioApi {
     private readonly random: () => number = Math.random,
     private readonly makeMusic: (p: MusicParams) => MusicSource = (p) => new ProceduralMusic(p),
     private readonly makeAmbience: (d: AmbienceDef) => AmbienceSource = (d) => new Ambience(d, this.random),
+    private readonly makeWater: (d: WaterRushDef) => WaterSource = (d) => new WaterRush(d, this.random),
   ) {}
 
   /** O contexto já existe (o jogador já fez algum gesto). */
@@ -137,6 +141,30 @@ export class AudioEngine implements AudioApi {
     if (level === this.level) return;
     this.level = level;
     this.track?.source.setIntensity(level);
+  }
+
+  stopTrack(): void {
+    // nada de trilha pedida antes do primeiro gesto começar depois
+    this.wantedTrack = null;
+    this.track?.source.stop(AUDIO.trackFadeMs);
+    this.track?.ambience?.stop(AUDIO.trackFadeMs);
+    this.track = null;
+    this.level = 0;
+  }
+
+  water(level: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.sfxBus || !this.noise) return;
+    if (!this.waterSource) {
+      this.waterSource = this.makeWater(WATER_RUSH);
+      this.waterSource.start(ctx, this.sfxBus, this.noise);
+    }
+    this.waterSource.setLevel(level);
+  }
+
+  stopWater(): void {
+    this.waterSource?.stop(AUDIO.trackFadeMs);
+    this.waterSource = null;
   }
 
   private startTrack(id: TrackId): void {

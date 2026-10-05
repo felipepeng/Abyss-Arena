@@ -314,6 +314,13 @@ v1; build publicada.
   câmara externa com colunas de coral. Depois da quebra ela ronda o jogador como o Olho, em vez de
   ficar sempre acima dele. Custo no navegador durante a quebra: 1,6 ms por quadro em média, 7,2 ms
   no pior. Detalhes no GDD §7.2 e §8.2.
+- **Cena de descida entre as fases (depois do M8):** do "Continuar" ao mapa seguinte, o mergulhador, já caindo
+  (a entrada no buraco não aparece), desce por um poço enorme e sai dele na fase seguinte (~6 s, pulável); a luz
+  diminui a cada descida e só se ouve a água (GDD §2.5). Código novo em
+  `scenes/descent.ts`, `render/descent.ts`, `audio/waterRush.ts` e `config/descent.ts`; `tests/scenes/descent.test.ts`
+  e `tests/audio/waterRush.test.ts`. Medido com `tools/audio-check.html?only=water`: sem erros, pico 0,05 / 0,12 /
+  0,23 (nadando, meio, queda). **Falta o ouvido e o olho em jogo:** o timbre da água, o ritmo e a luz
+  (`config/descent.ts`, `config/waterRush.ts`) só se ajustam vendo e ouvindo.
 - **Medusinha, Água-viva, ondas e navegação (depois do M8):**
   - A Água-viva passou a **640 de vida** (era 460).
   - A Medusinha foi redesenhada como miniatura da mãe.

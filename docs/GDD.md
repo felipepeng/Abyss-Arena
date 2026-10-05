@@ -86,9 +86,45 @@ cartão de título → onda 1 → pausa → onda 2 → pausa → onda 3 → paus
 ### 2.4 Vitória
 
 - **Fase concluída:** o chefe morre, as bolhas se espalham, a tela congela por um instante e
-  aparece "FASE CONCLUÍDA". Na Descida, o jogo segue para o próximo mapa (com vida cheia). Na
-  Arena livre, volta à seleção.
+  aparece "FASE CONCLUÍDA". Na Descida, o jogo segue para o próximo mapa (com vida cheia), depois da
+  **descida** (§2.5). Na Arena livre, volta à seleção.
 - **Fim da Descida:** depois do Olho, uma tela final com o tempo total e o número de mortes.
+
+### 2.5 A descida entre as fases
+
+Entre uma fase e a seguinte da Descida (Leito → Coral e Coral → Fosso; **não** na Arena livre nem
+depois do Olho), o botão "Continuar" leva a uma cena de ~6 s sem controle. Ela **não mostra o
+mergulhador entrando no buraco**: já começa com ele caindo, de cabeça para baixo, por um poço enorme,
+com a câmera descendo junto. No fim ela mostra **ele saindo** do poço, na água da fase seguinte, e o
+fade leva ao jogo; o cartão de título do mapa novo cobre a entrada.
+
+| Trecho | Duração | O que se vê |
+|---|---|---|
+| Queda | 3,8 s | já em 90% da velocidade (430 px/s em regime); paredes do poço, estratos que andam mais devagar (parallax), bolhas e riscas de velocidade; as cores vão do mapa que acabou para as do próximo; perto do fim a boca de saída aparece embaixo, alargando |
+| Saída | 2,5 s | passa pela boca e freia; a água e o feixe de luz do mapa novo aparecem embaixo do teto de rocha; ele vira e nada para a direita (190 px/s, abaixo do nado livre); a câmera para logo depois da boca |
+
+- **A luz só diminui:** de 0,92 a 0,46 na primeira descida e de 0,46 a 0,10 na segunda (1 = dia,
+  0 = preto). A escuridão é uma vinheta com um círculo de luz em volta do mergulhador, que encolhe
+  com a luz. A segunda descida começa onde a primeira acabou e termina mais escura.
+- **Só a água:** a música e o ambiente do mapa se calam (fade de 0,9 s) e fica o som da água do
+  mergulhador (§10.1): forte na queda, mais calma quando ele freia e nada.
+- **Pular:** Enter, Espaço, J ou Esc, mas só depois de 0,5 s (o Enter que confirmou "Continuar" não
+  pula a cena). Aparece "ENTER pular" no canto.
+- **Sessão:** o tempo da cena **não** entra no tempo da Descida, que só soma os passos jogados.
+
+---|---|---|
+| Boca | 1,8 s | o fundo do mar do mapa que acabou, com as colunas de luz dele; o mergulhador nada (190 px/s, abaixo do nado livre) até o meio do buraco |
+| Queda | 4,4 s | vira para baixo e acelera até 430 px/s; paredes do poço, estratos que andam mais devagar (parallax), bolhas e riscas de velocidade; as cores vão do mapa que acabou para as do próximo |
+| Chegada | 1,0 s | freia a 25% da velocidade, quase no preto |
+
+- **A luz só diminui:** de 0,92 a 0,46 na primeira descida e de 0,46 a 0,10 na segunda (1 = dia,
+  0 = preto). A escuridão é uma vinheta com um círculo de luz em volta do mergulhador, que encolhe
+  com a luz. A segunda descida começa onde a primeira acabou e termina mais escura.
+- **Só a água:** a música e o ambiente do mapa se calam (fade de 0,9 s) e fica o som da água do
+  mergulhador (§10.1), que acompanha a velocidade dele.
+- **Pular:** Enter, Espaço, J ou Esc, mas só depois de 0,5 s (o Enter que confirmou "Continuar" não
+  pula a cena). Aparece "ENTER pular" no canto.
+- **Sessão:** o tempo da cena **não** entra no tempo da Descida, que só soma os passos jogados.
 
 ---
 
@@ -734,6 +770,7 @@ de arquivos numa versão futura, então o sistema de áudio precisa aceitar as d
 | Derrota | acorde menor que afunda, logo depois do baque da morte do jogador |
 | Pilar que ruiu, rocha que lasca | estalo seco e baque curto de pedra; o da rocha é bem pequeno, porque o Olho o dispara muito |
 | Sucção da Água-viva | uma lufada grave a cada bolha da corrente, com o corte subindo |
+| Água da descida (§2.5) | o único som da cena: ruído filtrado que passa (o corte e o volume sobem com a velocidade do mergulhador, de um jorro na queda a um sopro calmo quando ele sai e nada), um rumor grave e bolhas que ficam mais frequentes quando ele acelera. Sem música, sem ambiente, sem sons de interface |
 
 Todo som tem pequena variação aleatória de altura (±5%) para não cansar.
 
@@ -799,7 +836,7 @@ salvar na v1).
 | **Controles** | tabela de §4.5 |
 | **Pausa** (`Esc`/`P`) | *Continuar*, *Tentar a fase de novo*, *Áudio*, *Sair para o menu*. A simulação congela |
 | **Derrota** | "VOCÊ AFUNDOU" · *Tentar de novo* · *Menu* |
-| **Fase concluída** | "FASE CONCLUÍDA" · segue (Descida) ou volta à seleção (Arena livre) |
+| **Fase concluída** | "FASE CONCLUÍDA" · segue (Descida, passando pela descida, §2.5) ou volta à seleção (Arena livre) |
 | **Fim da Descida** | tempo total, mortes · *Menu* |
 
 Toda troca de tela e de fase tem um **fade** curto (~300 ms). Nenhuma transição é instantânea.

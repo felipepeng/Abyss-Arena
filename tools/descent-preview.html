@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Prévia da descida</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="960" height="540"></canvas>
+<script type="module">
+// Ferramenta de desenvolvimento: desenha um quadro da cena de descida entre duas fases.
+//   /tools/descent-preview.html?from=0|1&t=3000
+// `from` é a posição do mapa que acabou na Descida (0 = Leito→Coral, 1 = Coral→Fosso); `t`, o tempo
+// da cena em ms (a queda vai até 3800 e a saída até 6300).
+import { SilentAudio } from "/src/audio/api.ts";
+import { BINDINGS } from "/src/config/input.ts";
+import { Input } from "/src/core/input.ts";
+import { Settings } from "/src/core/settings.ts";
+import { DescentScene } from "/src/scenes/descent.ts";
+import { DESCENT } from "/src/scenes/flow.ts";
+import { SceneManager } from "/src/scenes/manager.ts";
+
+const q = new URLSearchParams(location.search);
+const i = Number(q.get("from") ?? 0);
+const upTo = Number(q.get("t") ?? 3000);
+const g = document.getElementById("c").getContext("2d");
+const STEP = 1000 / 60;
+
+const app = {
+  input: new Input(BINDINGS),
+  scenes: new SceneManager(300, "#02050b"),
+  debug: { enabled: false },
+  settings: new Settings(),
+  audio: new SilentAudio(),
+  nextSeed: () => 5,
+};
+const from = DESCENT[i];
+const to = DESCENT[i + 1];
+const scene = new DescentScene(app, { from, next: { mode: { kind: "map", map: to }, seed: 5, flow: { kind: "free" } } });
+// o `leave` do fim da cena precisa de um gerenciador; aqui só importa o quadro
+while (scene.elapsedMs < upTo) scene.step(STEP);
+scene.render(g, 1);
+document.title = "pronto";
+</script>
+</body>
+</html>

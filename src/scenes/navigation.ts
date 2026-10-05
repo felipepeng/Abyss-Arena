@@ -1,6 +1,7 @@
 import type { MapDef } from "../world/mapdef";
 import type { App } from "./app";
 import { ArenaSelectScene } from "./arenaSelect";
+import { DescentScene } from "./descent";
 import { DESCENT, newSession, nextInDescent, type DescentSession } from "./flow";
 import { GameScene, type GameParams } from "./game";
 import { showFinal } from "./results";
@@ -37,12 +38,15 @@ export function retry(app: App, params: GameParams): void {
   app.scenes.resetTo(new GameScene(app, params));
 }
 
-/** Depois de "FASE CONCLUÍDA" na Descida: o próximo mapa, ou a tela final. */
+/** Depois de "FASE CONCLUÍDA" na Descida: a descida pelo buraco e o próximo mapa, ou a tela final. */
 export function continueDescent(app: App, params: GameParams, session: DescentSession): void {
-  const map = params.mode.kind === "map" ? nextInDescent(params.mode.map) : null;
-  if (!map) {
+  const from = params.mode.kind === "map" ? params.mode.map : null;
+  const map = from ? nextInDescent(from) : null;
+  if (!from || !map) {
     showFinal(app, session);
     return;
   }
-  app.scenes.resetTo(new GameScene(app, { mode: { kind: "map", map }, seed: app.nextSeed(), flow: { kind: "descent", session } }));
+  // a cena de descida leva ao mapa novo (semente nova, vida cheia) quando acaba ou é pulada
+  const next: GameParams = { mode: { kind: "map", map }, seed: app.nextSeed(), flow: { kind: "descent", session } };
+  app.scenes.resetTo(new DescentScene(app, { from, next }));
 }

@@ -53,6 +53,8 @@ src/
     waves.ts         tempos do fluxo da fase e do nascimento das ondas; as levas (`SurgeDef`,
                      `makeWave`, `SURGES`) que descrevem como cada onda chega
     nav.ts           navegação dos inimigos: folga da rocha, olhar à frente, passo da amostragem
+    descent.ts       a cena de descida: tempos da queda e da saída, mergulhador, poço, luz por descida, escuridão
+    waterRush.ts     o som da água da cena de descida
   sim/               simulação pura (determinística dada a semente)
     world.ts         estado do mundo e `stepWorld`: grade, entidades, projéteis, pickups, câmera
     body.ts          corpo físico comum (posição, velocidade, prev*, raios)
@@ -91,6 +93,7 @@ src/
                      esquerda, para o lado de cima ficar para cima: peixe e lampreia), exclusive (os seis
                      exclusivos), bosses (só despacha), crab, jelly, eye. Cada criatura
                      desenha o próprio aviso
+    descent.ts       o poço, a boca de saída com o teto da fase seguinte, o parallax, as bolhas e a escuridão da cena de descida
     spawns.ts        aviso de nascimento (redemoinho)
     projectiles.ts  particles.ts  pickups.ts
   fx/                efeitos de apresentação
@@ -105,7 +108,8 @@ src/
     ambience.ts      `Ambience`: cama de ruído, zumbido e sons esporádicos de cada mapa
     sequencer.ts     puro: escala, tempo, linhas escritas e camadas → notas (testável sem som)
     music.ts         `ProceduralMusic`: notas → som, camadas em barramentos com rampa
-    sources.ts       interfaces MusicSource (procedural agora, arquivo depois) e AmbienceSource
+    waterRush.ts     `WaterRush`: a água da cena de descida (ruído filtrado, rumor e bolhas que seguem a velocidade)
+    sources.ts       interfaces MusicSource (procedural agora, arquivo depois), AmbienceSource e WaterSource
     level.ts         intensidade da música lida do estado da fase
   scenes/
     manager.ts       pilha de cenas + fades (push, pop, replace e resetTo)
@@ -114,6 +118,8 @@ src/
     flow.ts          a Descida (ordem dos mapas), a sessão (tempo, mortes), `Flow`, formatTime
     navigation.ts    para onde cada saída leva (título, seleção, retry, continuar): um lugar só
     title.ts  arenaSelect.ts  controls.ts  audio.ts  pause.ts
+    descent.ts       a cena de descida entre as fases da Descida (GDD §2.5): a queda e a saída
+                     do poço, a pose do mergulhador, a luz (`descentLight`) e o som; cria a fase seguinte em `enter`
     game.ts          a fase (mapa + semente + fluxo); empilha a tela de resultado no fim
     results.ts       derrota, fase concluída e fim da Descida (uma cena, configurada por dados)
   ui/
@@ -519,6 +525,9 @@ interface MusicSource {
   passam por `AudioApi.ui`; quem os pede são as cenas. Os sons da fase vêm dos eventos da
   simulação: o único evento novo é `dashReady` (a recarga do dash acabou), e os marcos da fase
   (`phaseChanged`) viram som em `soundMap.ts`.
+- **Água da descida:** `AudioApi.stopTrack()` cala a música e o ambiente do mapa; `water(level)` começa o
+  `WaterRush` (`config/waterRush.ts`, no barramento dos efeitos) e depois só muda o nível (0 a 1, a velocidade
+  do mergulhador); `stopWater()` o desvanece. `tools/audio-check.html?only=water` mede o sinal.
 - As cenas falam com a interface `AudioApi`, não com o motor: os testes usam um espião e o jogo
   roda mudo se o navegador não tiver Web Audio.
 - O **hit-stop não pausa o áudio**: o relógio é o do `AudioContext`, e o som do acerto sai no
@@ -533,13 +542,18 @@ interface MusicSource {
 Pilha de cenas com fade de ~300 ms entre trocas:
 
 ```
-Title ─┬─ Descida ──────────────► Game(rift) → Game(coral) → Game(abyss) → Result(final)
+Title ─┬─ Descida ──────────────► Game(rift) ⇒ Descent ⇒ Game(coral) ⇒ Descent ⇒ Game(abyss) → Result(final)
        ├─ Arena livre → ArenaSelect → Game(x) → Result(fase) → ArenaSelect
        ├─ Controles
        └─ Áudio
 Game ── Esc/P ──► Pause (sobreposta; Game não chama step)
 Game ── morte ──► Result(derrota) → Tentar de novo (mesma semente) | Title
 ```
+
+`Descent` (`scenes/descent.ts`, GDD §2.5) é a cena de ~6 s entre as fases (começa na queda e termina com ele saindo do poço): `continueDescent` sorteia a semente
+e a cria; ela monta a `GameScene` seguinte em `enter` (no escuro do fade) e a entrega ao acabar ou ao ser
+pulada. Fala com o áudio por `stopTrack`, `water(level)` e `stopWater` (§8). `?descent=0|1` a abre
+direto; `tools/descent-preview.html?from=0|1&t=ms` desenha um quadro.
 
 A cena `Game` recebe `{ mapId, mode, seed }` e cria um `World` novo. A Descida é um objeto
 pequeno de sessão (`runIndex`, `deaths`, `timeMs`) que vive fora do `World`.
