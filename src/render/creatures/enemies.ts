@@ -1,5 +1,6 @@
 import { TAU, angLerp, lerp } from "../../core/math";
 import type { Enemy, EnemyKind } from "../../sim/enemies/types";
+import { drawFish } from "./fish";
 import { drawAnemone, drawHermit, drawJellyling, drawLamprey, drawUrchin, drawWatcher, type Drawer } from "./exclusive";
 
 // Inimigos comuns, desenhados como no protótipo (CONTEXTO §2.3 e §2.7). O aviso de cada
@@ -8,43 +9,6 @@ import { drawAnemone, drawHermit, drawJellyling, drawLamprey, drawUrchin, drawWa
 
 /** Progresso do estado atual, de 0 (acabou de entrar) a 1 (vai sair). */
 const progress = (e: Enemy): number => (e.stateMs > 0 ? 1 - Math.max(e.t, 0) / e.stateMs : 1);
-
-const drawFish: Drawer = (g, e, flashing) => {
-  const r = e.radius;
-  const tel = e.state === "telegraph";
-  if (tel) {
-    g.globalAlpha = 0.25 + 0.45 * Math.abs(Math.sin(progress(e) * 14));
-    g.fillStyle = "#ffcf6a";
-    g.beginPath();
-    g.arc(0, 0, r + 9, 0, TAU);
-    g.fill();
-    g.globalAlpha = 1;
-    // linha de aviso na direção travada (a criatura já está girada para o ângulo dela)
-    g.save();
-    g.rotate(Math.atan2(e.dirY, e.dirX) - e.ang);
-    g.strokeStyle = "rgba(255,190,90,0.5)";
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(r, 0);
-    g.lineTo(r + 70, 0);
-    g.stroke();
-    g.restore();
-  }
-  g.fillStyle = flashing ? "#ffffff" : tel ? "#ffb347" : "#e0603f";
-  g.beginPath();
-  g.ellipse(0, 0, r + 4, r * 0.68, 0, 0, TAU);
-  g.fill();
-  g.fillStyle = flashing ? "#ffffff" : "#a83c28";
-  g.beginPath();
-  g.moveTo(-r - 3, 0);
-  g.lineTo(-r - 12, -7);
-  g.lineTo(-r - 12, 7);
-  g.fill();
-  g.fillStyle = "#0b1420";
-  g.beginPath();
-  g.arc(r * 0.6, -2, 2, 0, TAU);
-  g.fill();
-};
 
 const drawCircler: Drawer = (g, e, flashing) => {
   const r = e.radius;

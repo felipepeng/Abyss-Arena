@@ -20,7 +20,14 @@ export class PauseScene implements Scene {
     const { scenes } = app;
     this.menu = new Menu(
       [
-        { kind: "button", label: "Continuar", onSelect: () => scenes.pop() },
+        {
+          kind: "button",
+          label: "Continuar",
+          onSelect: () => {
+            app.audio.ui("resume");
+            scenes.pop();
+          },
+        },
         { kind: "button", label: "Tentar a fase de novo", onSelect: () => retry(app, game.gameParams) },
         { kind: "button", label: "Áudio", onSelect: () => scenes.push(new AudioScene(app, true)) },
         { kind: "button", label: "Sair para o menu", onSelect: () => goToTitle(app) },
@@ -30,9 +37,14 @@ export class PauseScene implements Scene {
     );
   }
 
+  enter(): void {
+    this.app.audio.ui("pause");
+  }
+
   step(): void {
     const { input, scenes } = this.app;
     if (input.wasPressed("pause") || input.wasPressed("menuBack")) {
+      this.app.audio.ui("resume");
       scenes.pop();
       return;
     }

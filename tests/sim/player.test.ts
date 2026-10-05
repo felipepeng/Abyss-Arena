@@ -35,6 +35,38 @@ describe("nado", () => {
   });
 });
 
+describe("dash pronto de novo", () => {
+  it("emite dashReady uma vez, quando a recarga acaba, e só depois de um dash", () => {
+    const w = openWorld();
+    let ready = 0;
+    const count = () => {
+      for (const e of w.events.list) if (e.t === "dashReady") ready++;
+    };
+    // sem dash antes, não há o que anunciar
+    for (let i = 0; i < 100; i++) {
+      stepWorld(w, aimRight(w), STEP);
+      count();
+    }
+    expect(ready).toBe(0);
+    stepWorld(w, aimRight(w, { dashHeld: true }), STEP);
+    count();
+    let ms = 0;
+    while (w.player.dashCdMs > 0) {
+      expect(ready).toBe(0);
+      stepWorld(w, aimRight(w), STEP);
+      count();
+      ms += STEP;
+    }
+    expect(ready).toBe(1);
+    expect(ms).toBeGreaterThan(PLAYER.dash.cooldownMs - 2 * STEP);
+    for (let i = 0; i < 100; i++) {
+      stepWorld(w, aimRight(w), STEP);
+      count();
+    }
+    expect(ready).toBe(1);
+  });
+});
+
 describe("dash", () => {
   it("percorre ~82 px nos 140 ms (89 é o nominal 640 × 0,14; o arrasto come o resto)", () => {
     const w = openWorld();

@@ -87,7 +87,7 @@ src/
     ambient.ts       partículas de ambiente (decoração)
     rocks.ts         rocha em OffscreenCanvas, redesenhada só quando a grade muda
     creatures/       desenhadores: player (recebe o tempo do mundo para o pulso do anel de carga),
-                     enemies (peixe, circulador), exclusive (os seis
+                     enemies (circulador e o saco de pancada), fish, exclusive (os seis
                      exclusivos), bosses (só despacha), crab, jelly, eye. Cada criatura
                      desenha o próprio aviso
     spawns.ts        aviso de nascimento (redemoinho)
@@ -101,9 +101,10 @@ src/
     engine.ts        AudioContext no 1º gesto, barramentos music/sfx, volume, teto de vozes
     synth.ts         renderiza uma `SfxDef` (dados de config/sfx.ts) em nós de Web Audio
     soundMap.ts      evento da simulação → som (switch exaustivo)
+    ambience.ts      `Ambience`: cama de ruído, zumbido e sons esporádicos de cada mapa
     sequencer.ts     puro: escala, tempo, linhas escritas e camadas → notas (testável sem som)
     music.ts         `ProceduralMusic`: notas → som, camadas em barramentos com rampa
-    sources.ts       interface MusicSource (procedural agora, arquivo depois)
+    sources.ts       interfaces MusicSource (procedural agora, arquivo depois) e AmbienceSource
     level.ts         intensidade da música lida do estado da fase
   scenes/
     manager.ts       pilha de cenas + fades (push, pop, replace e resetTo)
@@ -125,7 +126,7 @@ tests/               Vitest, espelhando src/sim e src/world
 tests/balance/       bancada de equilíbrio (M8), `npm run balance`: jogador-robô, luta contra o Olho,
                      custo do passo, economia de cura. Imprime tabelas; não roda no `npm run test`
 tools/               scripts de desenvolvimento (gravar rastros do protótipo) e páginas de prévia:
-                     `eye-preview`, `crab-preview`, `player-preview`, `jelly-preview`, `enemy-preview`, `scenes-preview` (a arte e as telas sem jogar até
+                     `eye-preview`, `crab-preview`, `player-preview`, `jelly-preview`, `enemy-preview` (também o peixe: `?kinds=fish`, `&flash=1` e `?view=fish`), `scenes-preview` (a arte e as telas sem jogar até
                      elas) e `audio-check` (renderiza os sons num OfflineAudioContext e mede o sinal). As prévias dos
                      três chefes aceitam `?sheet=phases` (uma folha com o corpo em cada fase) e as do
                      Caranguejo e da Água-viva também `?view=...` (um quadro do jogo de verdade); os
@@ -510,6 +511,13 @@ interface MusicSource {
   A intensidade (0 ondas, 1 chefe, 2 última fase do chefe, `level.ts`) escolhe o tema que o
   sequenciador toca e muda o ganho dos barramentos das camadas em rampa, então não há corte. **Música em arquivo, no futuro, é outra
   implementação de `MusicSource`**, e o resto do código não muda.
+- **Ambiente:** `config/ambience.ts` traz, por mapa, a cama, o zumbido e os sons esporádicos
+  (`SfxDef` comuns). `ambience.ts` os toca no barramento dos efeitos, com o relógio do
+  contexto, e o motor o liga e desliga junto com a trilha (`startTrack`). Não há ambiente no menu.
+- **Sons de interface** (`UiSound`: mover, confirmar, voltar, pausar, continuar, cartão do mapa)
+  passam por `AudioApi.ui`; quem os pede são as cenas. Os sons da fase vêm dos eventos da
+  simulação: o único evento novo é `dashReady` (a recarga do dash acabou), e os marcos da fase
+  (`phaseChanged`) viram som em `soundMap.ts`.
 - As cenas falam com a interface `AudioApi`, não com o motor: os testes usam um espião e o jogo
   roda mudo se o navegador não tiver Web Audio.
 - O **hit-stop não pausa o áudio**: o relógio é o do `AudioContext`, e o som do acerto sai no

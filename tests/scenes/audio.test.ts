@@ -166,6 +166,52 @@ describe("cenas e música", () => {
   });
 });
 
+describe("sons de interface nas cenas", () => {
+  const key = (app: App, code: string, n = 2) => {
+    app.input.keyDown(code);
+    tick(app);
+    app.input.keyUp(code);
+    tick(app, n);
+  };
+
+  it("cada fase toca o cartão do mapa ao entrar (a arena de teste não)", () => {
+    const app = makeApp();
+    app.scenes.start(new GameScene(app, { mode: { kind: "map", map: CORAL }, seed: 1, flow: { kind: "free" } }));
+    expect(app.spy.ui_).toEqual(["title"]);
+    const test = makeApp();
+    test.scenes.start(new GameScene(test, { mode: { kind: "test" }, seed: 1, flow: { kind: "free" } }));
+    expect(test.spy.ui_).toEqual([]);
+  });
+
+  it("pausar toca 'pause'; continuar (Esc, P ou o botão) toca 'resume'", () => {
+    for (const close of ["Escape", "KeyP", "Enter"]) {
+      const app = makeApp();
+      app.scenes.start(new GameScene(app, { mode: { kind: "map", map: RIFT }, seed: 1, flow: { kind: "free" } }));
+      tick(app, 30);
+      app.spy.ui_.length = 0;
+      key(app, "Escape", 30);
+      expect(app.spy.ui_, "abrir").toEqual(["pause"]);
+      app.spy.ui_.length = 0;
+      key(app, close, 30);
+      // o botão "Continuar" é o primeiro da pausa: confirmar, e depois continuar
+      expect(app.spy.ui_, close).toEqual(close === "Enter" ? ["confirm", "resume"] : ["resume"]);
+    }
+  });
+
+  it("voltar com Esc toca 'back' nas telas do menu", () => {
+    const app = makeApp();
+    app.scenes.start(new TitleScene(app));
+    tick(app, 30);
+    // título → Arena livre (segundo item) → Esc volta
+    key(app, "ArrowDown");
+    key(app, "Enter", 40);
+    tick(app, 30);
+    app.spy.ui_.length = 0;
+    key(app, "Escape", 40);
+    expect(app.spy.ui_).toEqual(["back"]);
+  });
+});
+
 describe("cliques do menu", () => {
   const build = (spy: Spy) =>
     new Menu(

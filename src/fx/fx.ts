@@ -124,6 +124,7 @@ export class Fx {
         this.shake.add(FX.bossDied.shake.ms, FX.bossDied.shake.amp);
         break;
       case "phaseChanged":
+      case "dashReady":
         break;
       case "projectilePopped":
         b.emit(e.x, e.y, { ...FX.projectilePopped, color: e.color });

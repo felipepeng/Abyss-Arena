@@ -34,6 +34,7 @@ export class AudioScene implements Scene {
   step(dtMs: number): void {
     this.ambient?.step(dtMs);
     if (this.app.input.wasPressed("menuBack")) {
+      this.app.audio.ui("back");
       this.app.scenes.pop();
       return;
     }

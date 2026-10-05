@@ -12,14 +12,19 @@
 // repouso, no aviso e no ataque, ampliados, para ajustar a arte sem jogar até eles.
 //   /tools/enemy-preview.html                      todos os exclusivos
 //   /tools/enemy-preview.html?kinds=jellyling,watcher   só estes
+//   /tools/enemy-preview.html?kinds=fish&flash=1         no instante do acerto da lança
+//   /tools/enemy-preview.html?view=fish                  quadro do jogo com um cardume (Leito das Fendas)
 import { drawEnemy } from "/src/render/creatures/enemies.ts";
 import { ENEMY_DEFS } from "/src/sim/enemies/registry.ts";
 
-const ALL = ["hermit", "urchin", "jellyling", "anemone", "watcher", "lamprey"];
-const only = new URLSearchParams(location.search).get("kinds");
+const ALL = ["fish", "hermit", "urchin", "jellyling", "anemone", "watcher", "lamprey"];
+const qs = new URLSearchParams(location.search);
+const flash = qs.get("flash") === "1";
+const only = qs.get("kinds");
 const KINDS = only ? only.split(",").filter((k) => ALL.includes(k)) : ALL;
 // [estado, progresso do aviso] de cada coluna, por espécie
 const STATES = {
+  fish: [["chase", 0], ["telegraph", 0.6], ["charge", 0.5]],
   hermit: [["chase", 0], ["telegraph", 0.7], ["strike", 0.5]],
   urchin: [["rest", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
   jellyling: [["hover", 0], ["telegraph", 0.5], ["telegraph", 0.95]],
@@ -29,6 +34,46 @@ const STATES = {
 };
 const CELL = 220, ZOOM = 3.4, DPR = 2;
 const canvas = document.getElementById("c");
+if (qs.get("view") === "fish") {
+  const { createMapWorld, stepWorld } = await import("/src/sim/world.ts");
+  const { spawnEnemy } = await import("/src/sim/enemies/runner.ts");
+  const { NO_INTENT } = await import("/src/sim/player.ts");
+  const { Fx } = await import("/src/fx/fx.ts");
+  const { WorldRenderer } = await import("/src/render/renderer.ts");
+  const { RIFT } = await import("/src/world/maps/rift.ts");
+  const w = createMapWorld(RIFT, 3);
+  w.godMode = true;
+  canvas.width = 960;
+  canvas.height = 540;
+  const p = w.player;
+  // quatro peixes em volta do jogador: perseguindo, avisando, investindo e se recuperando
+  const set = [[-150, -60, "chase", 0], [-60, 90, "telegraph", 0.6], [130, -90, "charge", 0.4], [150, 70, "recover", 0.5]];
+  for (const [dx, dy, state, k] of set) {
+    const f = spawnEnemy(w, "fish", p.x + dx, p.y + dy);
+    f.state = state;
+    f.stateMs = 1000;
+    f.t = 1000 * (1 - k);
+    f.vx = f.vy = 0;
+    f.dirX = -dx / Math.hypot(dx, dy);
+    f.dirY = -dy / Math.hypot(dx, dy);
+    f.ang = f.prevAng = Math.atan2(f.dirY, f.dirX);
+    f.data.wob = dx;
+  }
+  for (let i = 0; i < 2; i++) stepWorld(w, NO_INTENT, 1000 / 60);
+  for (let i = 0; i < w.enemies.count; i++) {
+    const f = w.enemies.get(i);
+    f.vx = f.vy = 0;
+    f.x = f.prevX = f.x;
+    f.t = 1000 * (1 - set[i][3]);
+    f.state = set[i][2];
+    f.ang = f.prevAng = Math.atan2(f.dirY, f.dirX);
+  }
+  w.camera.x = w.camera.prevX = p.x - 480;
+  w.camera.y = w.camera.prevY = p.y - 270;
+  new WorldRenderer(RIFT.palette).draw(canvas.getContext("2d"), w, new Fx(), 1);
+  document.title = "pronto";
+  throw new Error("fim do quadro do jogo");
+}
 canvas.width = 3 * CELL * DPR;
 canvas.height = KINDS.length * CELL * DPR;
 canvas.style.width = 3 * CELL + "px";
@@ -43,7 +88,7 @@ KINDS.forEach((kind, row) => {
     const s = ENEMY_DEFS[kind].stats;
     const e = {
       kind, x: 0, y: 0, prevX: 0, prevY: 0, vx: 0, vy: 0, radius: s.radius, collR: s.collRadius,
-      hp: s.hp, maxHp: s.hp, state, stateMs: 1000, t: 1000 * (1 - k), ang: 0, prevAng: 0, flashMs: 0,
+      hp: s.hp, maxHp: s.hp, state, stateMs: 1000, t: 1000 * (1 - k), ang: 0, prevAng: 0, flashMs: flash ? 100 : 0,
       dirX: 1, dirY: 0, noDrop: false, fromWave: false, dead: false,
       // a varredura de 270° para a direita (dir = 1), começando em −135°; no meio dela na 3ª coluna
       data: { spin: 0.2, dir: 1, arm0: -2.36, armAng: state === "sweep" ? -0.3 : -2.36, armLen: state === "rest" ? 0 : 110 },

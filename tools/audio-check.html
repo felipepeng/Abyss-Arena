@@ -14,6 +14,8 @@
 //   /tools/audio-check.html   →  o resultado fica em window.__result (JSON) e na página
 import { createNoiseBuffer, playSfx } from "/src/audio/synth.ts";
 import { ProceduralMusic } from "/src/audio/music.ts";
+import { Ambience } from "/src/audio/ambience.ts";
+import { AMBIENCE } from "/src/config/ambience.ts";
 import { AUDIO } from "/src/config/audio.ts";
 import { MUSIC } from "/src/config/music.ts";
 import { SFX } from "/src/config/sfx.ts";
@@ -57,7 +59,7 @@ function stats(buf) {
   };
 }
 
-const result = { sfx: {}, music: {}, errors: [] };
+const result = { sfx: {}, music: {}, ambience: {}, errors: [] };
 
 for (const [name, def] of Object.entries(SFX)) {
   try {
@@ -85,6 +87,21 @@ for (const id of Object.keys(MUSIC)) {
     } catch (e) {
       result.errors.push(`music ${id}.${level}: ${e}`);
     }
+  }
+}
+
+// o ambiente de cada mapa por 40 s (tempo suficiente para os esporádicos soarem), sem música
+for (const id of Object.keys(AMBIENCE)) {
+  try {
+    const secs = 40;
+    const ctx = new OfflineAudioContext(1, RATE * secs, RATE);
+    const noise = createNoiseBuffer(ctx, AUDIO.noiseSeconds, () => Math.random());
+    const amb = new Ambience(AMBIENCE[id], () => Math.random(), { autoTick: false });
+    amb.start(ctx, chain(ctx), noise);
+    for (let t = 0.25; t < secs; t += 0.25) amb.tick(t);
+    result.ambience[id] = stats(await ctx.startRendering());
+  } catch (e) {
+    result.errors.push(`ambience ${id}: ${e}`);
   }
 }
 

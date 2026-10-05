@@ -3,6 +3,7 @@ import { soundFor } from "../../src/audio/soundMap";
 import { createNoiseBuffer, playSfx } from "../../src/audio/synth";
 import { AUDIO } from "../../src/config/audio";
 import { SFX, WARN_KEYS, type SfxName } from "../../src/config/sfx";
+import { PHASE_FLOW } from "../../src/config/waves";
 import { BOSS_DEFS } from "../../src/sim/bosses/registry";
 import type { SimEvent } from "../../src/sim/events";
 import { asAudio, FakeContext, type FakeOsc } from "./fakeContext";
@@ -31,7 +32,9 @@ describe("definições dos sons", () => {
   it("os efeitos comuns duram no máximo 1 s (só a morte do jogador e as do chefe são mais longas)", () => {
     for (const name of NAMES) {
       const total = Math.max(...SFX[name].layers.map((l) => (l.delayMs ?? 0) + l.durMs));
-      if (name === "bossDie" || name === "bossAppear" || name === "playerDie" || name === "arenaBreak") continue;
+      // os longos: mortes, chegada do chefe, vitória (a fanfarra espera o estrondo), derrota e o cartão do mapa
+      const long = ["bossDie", "bossAppear", "playerDie", "arenaBreak", "phaseClear", "defeat", "mapTitle"];
+      if (long.includes(name)) continue;
       expect(total, name).toBeLessThanOrEqual(1000);
     }
   });
@@ -77,6 +80,14 @@ describe("evento → som", () => {
     ["chefe entra", { t: "bossAppeared", ...at, boss: "eye" }, "bossAppear"],
     ["chefe muda de fase", { t: "bossPhase", ...at, boss: "eye", phase: 1 }, "bossPhase"],
     ["investida do chefe bate na rocha", { t: "bossImpact", ...at, boss: "crab" }, "bossImpact"],
+    ["dash pronto de novo", { t: "dashReady" }, "dashReady"],
+    ["onda limpa", { t: "phaseChanged", state: "interlude", wave: 1 }, "waveClear"],
+    ["o chefe começa a lutar", { t: "phaseChanged", state: "boss", wave: 3 }, "bossStart"],
+    ["fase concluída", { t: "phaseChanged", state: "cleared", wave: 3 }, "phaseClear"],
+    ["derrota", { t: "phaseChanged", state: "failed", wave: 2 }, "defeat"],
+    ["bloco de pilar se solta", { t: "pillarCrumble", ...at }, "stoneCrumble"],
+    ["a rocha lasca", { t: "rockEroded", ...at }, "rockChip"],
+    ["bolha na sucção da Água-viva", { t: "pullStream", ...at }, "pullWhoosh"],
   ];
 
   it.each(TABLE)("%s tem som", (_row, event, name) => {
@@ -96,6 +107,41 @@ describe("evento → som", () => {
     expect(seen.size).toBe(WARN_KEYS.length);
   });
 
+  it("só os marcos da fase têm som; os outros estados não fazem nada", () => {
+    for (const state of ["intro", "wave", "bossIntro"] as const) {
+      expect(soundFor({ t: "phaseChanged", state, wave: 1 }), state).toBeNull();
+    }
+  });
+
+  it("a fanfarra e a derrota esperam o estrondo (da morte do chefe e do jogador) acabar de começar", () => {
+    const first = (name: SfxName) => Math.min(...SFX[name].layers.map((l) => l.delayMs ?? 0));
+    expect(first("phaseClear")).toBeGreaterThanOrEqual(500);
+    expect(first("defeat")).toBeGreaterThanOrEqual(250);
+  });
+
+  it("o riser da entrada do chefe sobe até onde o golpe grave bate (o fim da apresentação)", () => {
+    const riser = SFX.bossAppear.layers.filter((l) => (l.attackMs ?? 0) >= 1000);
+    expect(riser.length).toBeGreaterThan(0);
+    for (const l of riser) expect(l.attackMs).toBeLessThanOrEqual(PHASE_FLOW.bossIntroMs);
+    expect(SFX.bossStart.priority).toBe(true);
+  });
+
+  it("o dash pronto é discreto: um tique curto e baixo, agudo, que não se acumula", () => {
+    const d = SFX.dashReady;
+    expect(d.layers).toHaveLength(1);
+    expect(d.layers[0]?.durMs).toBeLessThanOrEqual(120);
+    expect(d.layers[0]?.gain).toBeLessThanOrEqual(0.16);
+    expect(d.minGapMs).toBeGreaterThan(0);
+    expect(d.priority).toBeFalsy();
+  });
+
+  it("os sons de cenário e o do vento da sucção não passam do teto de vozes nem de uma lufada", () => {
+    for (const name of ["stoneCrumble", "rockChip", "pullWhoosh"] as const) {
+      expect(SFX[name].minGapMs, name).toBeGreaterThan(0);
+      expect(SFX[name].priority, name).toBeFalsy();
+    }
+  });
+
   it("o nascimento de inimigos comuns não faz som (o redemoinho de bolhas é só visual)", () => {
     expect(soundFor({ t: "spawnWarn", ...at })).toBeNull();
   });
@@ -105,9 +151,10 @@ describe("evento → som", () => {
     expect(soundFor({ t: "telegraph", ...at, source: "hermit", attack: "claw" })).toBeNull();
   });
 
-  it("o menu tem os dois cliques", () => {
-    expect(SFX.menuMove).toBeDefined();
-    expect(SFX.menuConfirm).toBeDefined();
+  it("o menu tem os seus sons: navegar, confirmar, voltar, pausar, continuar e o cartão do mapa", () => {
+    for (const name of ["menuMove", "menuConfirm", "menuBack", "pause", "resume", "mapTitle"] as const) {
+      expect(SFX[name], name).toBeDefined();
+    }
   });
 });
 

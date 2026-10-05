@@ -66,6 +66,18 @@ export type SfxName =
   | "bossDie"
   | "menuMove"
   | "menuConfirm"
+  | "menuBack"
+  | "pause"
+  | "resume"
+  | "mapTitle"
+  | "dashReady"
+  | "waveClear"
+  | "phaseClear"
+  | "defeat"
+  | "bossStart"
+  | "stoneCrumble"
+  | "rockChip"
+  | "pullWhoosh"
   | (typeof WARN_KEYS)[number];
 
 export const SFX: Readonly<Record<SfxName, SfxDef>> = {
@@ -148,6 +160,18 @@ export const SFX: Readonly<Record<SfxName, SfxDef>> = {
     layers: [
       { kind: "osc", wave: "sine", freq: [72, 48], gain: 0.5, durMs: 1300, attackMs: 500 },
       { kind: "noise", gain: 0.2, durMs: 1100, attackMs: 600, filter: { type: "lowpass", freq: [200, 90] } },
+      // o riser: ruído e um tom grave que sobem até o fim da apresentação (bossIntroMs)
+      { kind: "noise", gain: 0.2, durMs: 1500, attackMs: 1300, filter: { type: "bandpass", freq: [160, 3200], q: 1.4 } },
+      { kind: "osc", wave: "sawtooth", freq: [60, 240], gain: 0.1, durMs: 1500, attackMs: 1300, filter: { type: "lowpass", freq: [300, 1600] } },
+    ],
+  },
+  // o golpe grave em que a apresentação acaba e a luta começa: o riser de bossAppear cai aqui
+  bossStart: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "sine", freq: [95, 32], gain: 0.62, durMs: 800, attackMs: 3 },
+      { kind: "noise", gain: 0.42, durMs: 600, attackMs: 3, filter: { type: "lowpass", freq: [1400, 80] } },
+      { kind: "osc", wave: "sawtooth", freq: [58, 30], gain: 0.22, durMs: 700, attackMs: 3, filter: { type: "lowpass", freq: [350, 80] } },
     ],
   },
   bossPhase: {
@@ -186,6 +210,99 @@ export const SFX: Readonly<Record<SfxName, SfxDef>> = {
     layers: [
       { kind: "osc", wave: "sine", freq: [880, 940], gain: 0.26, durMs: 110, attackMs: 2 },
       { kind: "osc", wave: "sine", freq: [1320, 1320], gain: 0.18, durMs: 120, attackMs: 2, delayMs: 50 },
+    ],
+  },
+  // voltar: o clique de confirmar, mas descendo
+  menuBack: {
+    layers: [
+      { kind: "osc", wave: "sine", freq: [740, 600], gain: 0.22, durMs: 100, attackMs: 2 },
+      { kind: "osc", wave: "sine", freq: [520, 440], gain: 0.16, durMs: 110, attackMs: 2, delayMs: 45 },
+    ],
+  },
+  // pausa: o mundo abafa (varredura que desce); continuar: ele volta (varredura que sobe)
+  pause: {
+    layers: [
+      { kind: "noise", gain: 0.3, durMs: 260, attackMs: 20, filter: { type: "lowpass", freq: [2600, 260], q: 0.9 } },
+      { kind: "osc", wave: "sine", freq: [440, 220], gain: 0.16, durMs: 240, attackMs: 4 },
+    ],
+  },
+  resume: {
+    layers: [
+      { kind: "noise", gain: 0.3, durMs: 260, attackMs: 20, filter: { type: "lowpass", freq: [260, 2600], q: 0.9 } },
+      { kind: "osc", wave: "sine", freq: [220, 440], gain: 0.16, durMs: 240, attackMs: 4 },
+    ],
+  },
+  // o cartão com o nome do mapa: uma nota longa e grave, com um brilho por cima
+  mapTitle: {
+    layers: [
+      { kind: "osc", wave: "sine", freq: [196, 196], gain: 0.2, durMs: 1500, attackMs: 450 },
+      { kind: "osc", wave: "triangle", freq: [294, 294], gain: 0.1, durMs: 1300, attackMs: 600 },
+      { kind: "osc", wave: "sine", freq: [784, 784], gain: 0.05, durMs: 1000, attackMs: 700 },
+    ],
+  },
+
+  // --- estado do jogador -------------------------------------------------------------------
+  // o dash voltou: um tique agudo e discreto (acontece a cada ~1,3 s de dash seguido)
+  dashReady: {
+    minGapMs: 300,
+    layers: [{ kind: "osc", wave: "sine", freq: [1568, 1568], gain: 0.14, durMs: 90, attackMs: 2 }],
+  },
+
+  // --- progresso da fase ---------------------------------------------------------------------
+  // onda limpa: um sino ascendente (sol, ré, sol), mais grave e mais longo que a cura
+  waveClear: {
+    layers: [
+      { kind: "osc", wave: "sine", freq: [392, 392], gain: 0.2, durMs: 320 },
+      { kind: "osc", wave: "sine", freq: [587, 587], gain: 0.2, durMs: 320, delayMs: 110 },
+      { kind: "osc", wave: "sine", freq: [784, 784], gain: 0.22, durMs: 460, delayMs: 220 },
+      { kind: "osc", wave: "sine", freq: [1568, 1568], gain: 0.05, durMs: 320, delayMs: 220 },
+    ],
+  },
+  // fase concluída: uma fanfarra curta (dó, mi, sol e o acorde), depois do estrondo do chefe
+  phaseClear: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "triangle", freq: [523, 523], gain: 0.2, durMs: 190, delayMs: 600 },
+      { kind: "osc", wave: "triangle", freq: [659, 659], gain: 0.2, durMs: 190, delayMs: 760 },
+      { kind: "osc", wave: "triangle", freq: [784, 784], gain: 0.2, durMs: 190, delayMs: 920 },
+      { kind: "osc", wave: "triangle", freq: [1047, 1047], gain: 0.22, durMs: 500, delayMs: 1080 },
+      { kind: "osc", wave: "triangle", freq: [784, 784], gain: 0.16, durMs: 500, delayMs: 1080 },
+      { kind: "osc", wave: "sine", freq: [659, 659], gain: 0.16, durMs: 500, delayMs: 1080 },
+    ],
+  },
+  // derrota: um acorde menor que afunda, logo depois do baque da morte
+  defeat: {
+    priority: true,
+    layers: [
+      { kind: "osc", wave: "triangle", freq: [220, 165], gain: 0.22, durMs: 900, attackMs: 60, delayMs: 350, filter: { type: "lowpass", freq: [900, 300] } },
+      { kind: "osc", wave: "triangle", freq: [262, 196], gain: 0.2, durMs: 900, attackMs: 60, delayMs: 350, filter: { type: "lowpass", freq: [900, 300] } },
+      { kind: "osc", wave: "triangle", freq: [330, 247], gain: 0.18, durMs: 900, attackMs: 60, delayMs: 350, filter: { type: "lowpass", freq: [900, 300] } },
+    ],
+  },
+
+  // --- cenário -------------------------------------------------------------------------------
+  // um bloco de pilar se solta: um estalo seco e um baque curto de pedra (vários seguidos ao ruir)
+  stoneCrumble: {
+    minGapMs: 70,
+    layers: [
+      { kind: "noise", gain: 0.3, durMs: 170, attackMs: 3, filter: { type: "bandpass", freq: [900, 300], q: 1.1 } },
+      { kind: "osc", wave: "sine", freq: [140, 70], gain: 0.18, durMs: 140, attackMs: 3 },
+    ],
+  },
+  // a rocha lasca com a batida de um projétil: bem pequeno, acontece muito no Olho
+  rockChip: {
+    minGapMs: 110,
+    layers: [
+      { kind: "noise", gain: 0.16, durMs: 55, attackMs: 2, filter: { type: "bandpass", freq: [1800, 900], q: 1.4 } },
+      { kind: "osc", wave: "triangle", freq: [420, 260], gain: 0.1, durMs: 60, attackMs: 2 },
+    ],
+  },
+  // a sucção da Água-viva: uma lufada grave que cada bolha da corrente repete, com o corte subindo
+  pullWhoosh: {
+    minGapMs: 140,
+    layers: [
+      { kind: "noise", gain: 0.14, durMs: 420, attackMs: 110, filter: { type: "bandpass", freq: [250, 800], q: 0.9 } },
+      { kind: "osc", wave: "sine", freq: [120, 80], gain: 0.08, durMs: 380, attackMs: 100 },
     ],
   },
 

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { AudioEngine, gain } from "../../src/audio/engine";
+import type { AmbienceDef } from "../../src/config/ambience";
 import { ProceduralMusic } from "../../src/audio/music";
-import type { MusicSource } from "../../src/audio/sources";
+import type { AmbienceSource, MusicSource } from "../../src/audio/sources";
 import { AUDIO } from "../../src/config/audio";
+import { AMBIENCE } from "../../src/config/ambience";
 import { MUSIC, MUSIC_LAYERS, type MusicLevel, type MusicParams } from "../../src/config/music";
+import { SFX } from "../../src/config/sfx";
 import { Settings } from "../../src/core/settings";
 import type { SimEvent } from "../../src/sim/events";
 import { asAudio, FakeContext } from "./fakeContext";
@@ -27,7 +30,21 @@ class SpyMusic implements MusicSource {
   }
 }
 
+/** Ambiente de mentira: só conta o que o motor pediu (o de verdade tem o seu arquivo de testes). */
+class SpyAmbience implements AmbienceSource {
+  started = 0;
+  stopped: number[] = [];
+  constructor(readonly def: AmbienceDef) {}
+  start(): void {
+    this.started++;
+  }
+  stop(fadeMs: number): void {
+    this.stopped.push(fadeMs);
+  }
+}
+
 function setup(opts: { noContext?: boolean } = {}) {
+  const ambiences: SpyAmbience[] = [];
   const ctx = new FakeContext();
   const settings = new Settings();
   const made: SpyMusic[] = [];
@@ -44,8 +61,13 @@ function setup(opts: { noContext?: boolean } = {}) {
       made.push(m);
       return m;
     },
+    (d) => {
+      const a = new SpyAmbience(d);
+      ambiences.push(a);
+      return a;
+    },
   );
-  return { ctx, settings, engine, made, contexts: () => contexts };
+  return { ctx, settings, engine, made, ambiences, contexts: () => contexts };
 }
 
 const at = { x: 0, y: 0 };
@@ -177,11 +199,61 @@ describe("trilhas e intensidade", () => {
   });
 });
 
+describe("ambiente dos mapas", () => {
+  it("cada mapa começa o seu ambiente com a trilha; o menu não tem", () => {
+    const { engine, ambiences } = setup();
+    engine.unlock();
+    engine.playTrack("menu");
+    expect(ambiences).toHaveLength(0);
+    for (const id of ["rift", "coral", "abyss"] as const) {
+      engine.playTrack(id);
+      expect(ambiences.at(-1)?.def).toBe(AMBIENCE[id]);
+    }
+    expect(ambiences).toHaveLength(3);
+    expect(ambiences.every((a) => a.started === 1)).toBe(true);
+  });
+
+  it("trocar de trilha some com o ambiente antigo; repetir a trilha não o recomeça", () => {
+    const { engine, ambiences } = setup();
+    engine.unlock();
+    engine.playTrack("coral");
+    engine.playTrack("coral");
+    expect(ambiences).toHaveLength(1);
+    expect(ambiences[0]?.stopped).toEqual([]);
+    engine.playTrack("menu");
+    expect(ambiences[0]?.stopped).toEqual([AUDIO.trackFadeMs]);
+  });
+
+  it("o ambiente pedido antes do primeiro gesto começa quando o contexto nasce", () => {
+    const { engine, ambiences } = setup();
+    engine.playTrack("abyss");
+    expect(ambiences).toHaveLength(0);
+    engine.unlock();
+    expect(ambiences).toHaveLength(1);
+  });
+});
+
+describe("sons de interface", () => {
+  it("cada som de interface toca o efeito certo", () => {
+    const names = { move: "menuMove", confirm: "menuConfirm", back: "menuBack", pause: "pause", resume: "resume", title: "mapTitle" } as const;
+    for (const [kind, name] of Object.entries(names)) {
+      const { engine, ctx } = setup();
+      engine.unlock();
+      engine.ui(kind as keyof typeof names);
+      expect(ctx.sources, kind).toBeGreaterThan(0);
+      // a primeira fonte tem a frequência inicial da primeira camada do som esperado (±5%)
+      const first = SFX[name].layers.find((l) => l.kind === "osc")?.freq?.[0] as number;
+      const got = ctx.oscs[0]?.frequency.calls[0]?.args[0] as number;
+      if (SFX[name].layers[0]?.kind === "osc") expect(got / first, kind).toBeCloseTo(1, 1);
+    }
+  });
+});
+
 describe("efeitos", () => {
   it("um evento com som cria fontes de som; um sem som não cria nada", () => {
     const { engine, ctx } = setup();
     engine.unlock();
-    engine.onEvents([{ t: "rockEroded", ...at }]);
+    engine.onEvents([{ t: "spawnWarn", ...at }]);
     expect(ctx.sources).toBe(0);
     engine.onEvents([ev.hit]);
     expect(ctx.sources).toBeGreaterThan(0);

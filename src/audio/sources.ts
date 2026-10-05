@@ -10,3 +10,12 @@ export interface MusicSource {
   /** Some em `fadeMs` e libera tudo. */
   stop(fadeMs: number): void;
 }
+
+// Ambiente sonoro de um mapa (`ambience.ts`): toca por baixo da música enquanto a trilha do mapa
+// está tocando.
+export interface AmbienceSource {
+  /** Começa a tocar em `out`, com o ruído branco que o motor já criou. */
+  start(ctx: AudioContext, out: AudioNode, noise: AudioBuffer): void;
+  /** Some em `fadeMs` e libera tudo. */
+  stop(fadeMs: number): void;
+}

@@ -265,6 +265,12 @@ engasga o áudio.
   (GDD §10.2). Medido com `tools/audio-check.html`: sem erros, maior pico de música 0,49 e o
   volume e o brilho sobem a cada nível. **Ainda falta o ouvido:** os temas e o equilíbrio de
   volume precisam ser ouvidos e ajustados em `config/music.ts`.
+- **Sons novos (2026-10-03):** onda limpa, fase concluída, derrota, o golpe de início da luta do
+  chefe (mais um *riser* na entrada dele), o dash pronto de novo, o ambiente de cada mapa,
+  pilar que ruiu, rocha que lasca, a sucção da Água-viva, e os sons de menu (voltar, pausar,
+  continuar, cartão do mapa). Medidos com `tools/audio-check.html` (agora também renderiza o
+  ambiente): sem erros; o ambiente fica em ~0,01 de volume (a música, em 0,04–0,06) e o maior
+  pico de efeito é 0,48. Também precisam de ouvido, em `config/sfx.ts` e `config/ambience.ts`.
 
 ---
 

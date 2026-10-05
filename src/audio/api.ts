@@ -7,12 +7,16 @@ import type { SimEvent } from "../sim/events";
 
 export type { MusicLevel, TrackId };
 
-export type UiSound = "move" | "confirm";
+/**
+ * Sons de interface: navegar e confirmar nos menus, voltar, abrir e fechar a pausa e o cartão
+ * com o nome do mapa.
+ */
+export type UiSound = "move" | "confirm" | "back" | "pause" | "resume" | "title";
 
 export interface AudioApi {
   /** Os eventos da simulação de um passo. O áudio decide quais viram som (GDD §10.1). */
   onEvents(events: readonly SimEvent[]): void;
-  /** Clique do menu ao navegar e ao confirmar. */
+  /** Som de interface (cliques do menu, pausa, cartão do mapa). */
   ui(kind: UiSound): void;
   /** Toca a trilha (a mesma que já toca continua, sem recomeçar). Volta à intensidade 0. */
   playTrack(track: TrackId): void;

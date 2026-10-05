@@ -128,7 +128,10 @@ export function stepPlayer(w: World, intent: PlayerIntent, dtMs: number): void {
   }
 
   if (p.invulnMs > 0) p.invulnMs -= dtMs;
-  if (p.dashCdMs > 0) p.dashCdMs -= dtMs;
+  if (p.dashCdMs > 0) {
+    p.dashCdMs -= dtMs;
+    if (p.dashCdMs <= 0) w.events.push({ t: "dashReady" });
+  }
 
   // dash na direção da mira; segurar a tecla redispara assim que a recarga zera
   if (intent.dashHeld && p.dashCdMs <= 0 && p.dashMs <= 0) {

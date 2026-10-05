@@ -34,6 +34,8 @@ export type SimEvent =
   /** A máquina da fase mudou de estado. */
   | { t: "phaseChanged"; state: PhaseStateName; wave: number }
   | { t: "dash"; x: number; y: number; dirX: number; dirY: number }
+  /** A recarga do dash acabou: o jogador pode usá-lo de novo (só o áudio reage). */
+  | { t: "dashReady" }
   /** O jogador apertou o ataque: começa a antecipação e a carga. O áudio abre o tom da carga. */
   | { t: "chargeStart"; x: number; y: number }
   /** A estocada saiu. `charge` em [0, 1]. */

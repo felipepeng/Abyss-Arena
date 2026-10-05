@@ -32,6 +32,7 @@ export class ArenaSelectScene implements Scene {
   step(dtMs: number): void {
     this.ambient.step(dtMs);
     if (this.app.input.wasPressed("menuBack")) {
+      this.app.audio.ui("back");
       goToTitle(this.app);
       return;
     }

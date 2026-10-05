@@ -70,6 +70,8 @@ export class GameScene implements Scene {
 
   enter(): void {
     this.app.audio.playTrack(this.track);
+    // o cartão com o nome do mapa aparece (de novo) a cada fase, inclusive ao tentar de novo
+    if (this.params.mode.kind === "map") this.app.audio.ui("title");
   }
 
   private newWorld(): World {

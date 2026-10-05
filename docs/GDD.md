@@ -300,6 +300,12 @@ Detalhes completos no CONTEXTO §5.
 | Recuperação | 520 ms | 700 ms |
 | Dano (ataque / contato) | 9 / 5 | 11 / 6 |
 
+**Visual do Peixe** (redesenhado depois do M8): corpo de torpedo com degradê e contorno, nadadeiras
+dorsal, ventral e peitoral, cauda bifurcada que balança no ritmo do serpenteio e olho com anel claro e
+brilho. No **aviso** o corpo fica âmbar (com o halo e a linha de mira de sempre) e o cenho franze; na
+**investida** a cauda fica reta e aparecem riscos de velocidade. Só apresentação. Antes e depois em
+`docs/screenshots/fish/`.
+
 **Fora do raio de visão** (Peixe 300 px, Lampreia 560 px), eles não ficam parados esperando o
 jogador: avançam devagar (40 e 70 px/s) e passam a perseguir de verdade quando entram no raio.
 É uma mudança em relação ao protótipo, onde o peixe parava.
@@ -718,9 +724,22 @@ de arquivos numa versão futura, então o sistema de áudio precisa aceitar as d
 | Aviso de ataque de chefe | um som por tipo de aviso, grave e reconhecível |
 | Morte de inimigo | bolhas + tom curto |
 | Morte do chefe | explosão grave longa |
-| Menu | clique suave ao navegar e ao confirmar |
+| Menu | clique suave ao navegar e ao confirmar; outro, descendo, ao voltar |
+| Pausa e continuar | varredura que abafa (desce) ao pausar e outra que abre (sobe) ao continuar |
+| Cartão do mapa | uma nota longa e grave quando o nome do mapa aparece (a cada fase, inclusive ao tentar de novo) |
+| Dash pronto de novo | um tique agudo, curto e baixo quando a recarga acaba. É o único som do estado do jogador além do dano e da morte |
+| Onda limpa | sino ascendente (sol, ré, sol), mais grave e mais longo que o da cura |
+| O chefe começa a lutar | golpe grave no fim da apresentação, onde o *riser* da entrada dele chega |
+| Fase concluída | fanfarra curta (dó, mi, sol e o acorde), logo depois do estrondo da morte do chefe |
+| Derrota | acorde menor que afunda, logo depois do baque da morte do jogador |
+| Pilar que ruiu, rocha que lasca | estalo seco e baque curto de pedra; o da rocha é bem pequeno, porque o Olho o dispara muito |
+| Sucção da Água-viva | uma lufada grave a cada bolha da corrente, com o corte subindo |
 
 Todo som tem pequena variação aleatória de altura (±5%) para não cansar.
+
+A entrada do chefe (`bossAppear`) ganhou um *riser*: ruído e um tom grave que sobem durante os
+1,5 s da apresentação e terminam no golpe grave do início da luta. A fanfarra e a derrota esperam
+o estrondo da morte começar, para não brigarem com ele.
 
 Implementação (M7): além da tabela, tocam a morte do jogador, a entrada do chefe, a troca de fase
 dele e a batida da investida numa formação. Só os **chefes** têm som de aviso (11 ao todo, um por
@@ -748,6 +767,21 @@ abre ao apertar o ataque, sobe durante os 600 ms da carga e corta quando a estoc
 - Menu com uma música calma própria (pentatônica maior, só as ondas).
 - A música do chefe responde na hora: o ganho das camadas sobe em ~1 s, dentro dos 1,5 s da
   apresentação do chefe.
+
+### 10.2.1 Ambiente dos mapas
+
+Por baixo da música, cada mapa tem o som da água do lugar: uma cama contínua de ruído cujo corte
+oscila devagar (a água "respira"), às vezes um zumbido grave, e sons esporádicos sorteados (de
+3 a 34 s de intervalo). Fica a cerca de um quarto do volume da música. O menu não tem ambiente.
+
+| Mapa | Cama | Esporádicos |
+|---|---|---|
+| Leito das Fendas | rumor grave de pedra e correnteza | rocha que range, bolhas soltas, uma pedrinha |
+| Jardim de Corais | água clara e macia | sinos nas notas do Lá lídio da música, bolhas agudas |
+| Fosso do Abismo | grave quase inaudível, com um zumbido de mi e fá que bate | um chamado distante (dois, em alturas diferentes) e um brilho agudo de olho |
+
+O ambiente toca no barramento dos **efeitos** (o controle de volume de efeitos o inclui) e muda
+junto com a trilha: some em ~1 s ao trocar de mapa.
 
 ### 10.3 Volume
 

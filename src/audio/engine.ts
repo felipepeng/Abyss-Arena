@@ -1,12 +1,14 @@
+import { AMBIENCE, type AmbienceDef } from "../config/ambience";
 import { AUDIO } from "../config/audio";
 import { MUSIC, type MusicLevel, type MusicParams, type TrackId } from "../config/music";
 import { SFX, type SfxName } from "../config/sfx";
 import type { Settings } from "../core/settings";
 import type { SimEvent } from "../sim/events";
 import type { AudioApi, UiSound } from "./api";
+import { Ambience } from "./ambience";
 import { ProceduralMusic } from "./music";
 import { soundFor } from "./soundMap";
-import type { MusicSource } from "./sources";
+import type { AmbienceSource, MusicSource } from "./sources";
 import { createNoiseBuffer, playSfx, type Voice } from "./synth";
 
 // Motor de áudio (ARCHITECTURE §8): cria o `AudioContext` no primeiro gesto do jogador (política
@@ -17,6 +19,15 @@ import { createNoiseBuffer, playSfx, type Voice } from "./synth";
 // O hit-stop não pausa o áudio: o relógio daqui é o do contexto, não o da simulação. O som do
 // acerto sai no passo em que o evento nasce, ou seja, no começo do congelamento.
 
+const UI_SFX: Readonly<Record<UiSound, SfxName>> = {
+  move: "menuMove",
+  confirm: "menuConfirm",
+  back: "menuBack",
+  pause: "pause",
+  resume: "resume",
+  title: "mapTitle",
+};
+
 const defaultContext = (): AudioContext | null => (typeof AudioContext === "undefined" ? null : new AudioContext());
 
 export class AudioEngine implements AudioApi {
@@ -25,7 +36,7 @@ export class AudioEngine implements AudioApi {
   private musicBus: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private wantedTrack: TrackId | null = null;
-  private track: { id: TrackId; source: MusicSource } | null = null;
+  private track: { id: TrackId; source: MusicSource; ambience: AmbienceSource | null } | null = null;
   private level: MusicLevel = 0;
   private voices: Voice[] = [];
   private charge: Voice | null = null;
@@ -37,6 +48,7 @@ export class AudioEngine implements AudioApi {
     private readonly makeContext: () => AudioContext | null = defaultContext,
     private readonly random: () => number = Math.random,
     private readonly makeMusic: (p: MusicParams) => MusicSource = (p) => new ProceduralMusic(p),
+    private readonly makeAmbience: (d: AmbienceDef) => AmbienceSource = (d) => new Ambience(d, this.random),
   ) {}
 
   /** O contexto já existe (o jogador já fez algum gesto). */
@@ -113,7 +125,7 @@ export class AudioEngine implements AudioApi {
   }
 
   ui(kind: UiSound): void {
-    this.play(kind === "move" ? "menuMove" : "menuConfirm");
+    this.play(UI_SFX[kind]);
   }
 
   playTrack(track: TrackId): void {
@@ -133,12 +145,17 @@ export class AudioEngine implements AudioApi {
     // a mesma trilha continua (tentar de novo não recomeça a música)
     if (this.track?.id === id) return;
     this.track?.source.stop(AUDIO.trackFadeMs);
+    this.track?.ambience?.stop(AUDIO.trackFadeMs);
     const source = this.makeMusic(MUSIC[id]);
     // trilha nova começa nas ondas; quem manda a intensidade é a cena, a cada passo
     this.level = 0;
     source.start(ctx, this.musicBus);
     source.setIntensity(0);
-    this.track = { id, source };
+    // o ambiente do mapa (o menu não tem) toca no barramento dos efeitos, por baixo da música
+    const def = AMBIENCE[id];
+    const ambience = def && this.sfxBus && this.noise ? this.makeAmbience(def) : null;
+    if (ambience && this.sfxBus && this.noise) ambience.start(ctx, this.sfxBus, this.noise);
+    this.track = { id, source, ambience };
   }
 
   private stopCharge(): void {
